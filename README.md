@@ -1,60 +1,91 @@
 # Privacy Policy for Crossword
 
-**Effective Date:** August 25, 2025
+**Effective Date:** August 25, 2025  
+**Last Updated:** October 28, 2025  
 
-Crossword (“the Game,” “we,” “our,” or “us”) respects your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, and safeguard your information when you use our mobile application, **Crossword**, available on the Google Play Store.  
+Crossword (“the Game,” “we,” “our,” or “us”) respects your privacy and is committed to protecting your personal information and maintaining the safety and integrity of your device.  
+This Privacy Policy explains how we collect, use, and safeguard your data when you use our mobile application, **Crossword**, available on the Google Play Store.  
 
 ---
 
 ## 1. Information We Collect
-When you use Crossword, we may collect the following types of information:
+
+When you use Crossword, we may collect limited information to ensure the app functions properly and performs reliably.
 
 - **Personal Information:**  
-  We do not require you to provide personal information (such as name, email, or phone number) to play the Game.
+  We do not require or collect any personal information such as your name, email address, or phone number.
 
 - **Non-Personal Information:**  
-  - Device information (model, operating system, version).  
-  - Usage data (how often you play, features you use, performance statistics).  
-  - Crash logs and diagnostics (to help us improve the Game).  
+  - Device information (model, operating system, version)  
+  - Usage data (how often you play, gameplay actions, and features used)  
+  - Crash logs and diagnostics (to identify bugs and improve performance)  
+
+We do **not** collect sensitive device identifiers (IMEI, IMSI, MAC address) or track users across other apps or services.
 
 ---
 
 ## 2. How We Use the Information
-We use the collected data to:  
-- Improve gameplay experience and app performance.  
-- Fix bugs and optimize features.  
+
+We only use collected data to:  
+- Improve gameplay and user experience.  
+- Detect and fix bugs or performance issues.  
+- Maintain app functionality and ensure security.  
+
+We **never** use the information for advertising, profiling, or user tracking.
 
 ---
 
-## 3. Sharing of Information
-We do not sell, trade, or rent your personal information.  
-We may share limited non-personal information only as required by law or to protect our legal rights.  
+## 3. Device and Network Safety
+
+We prioritize your device’s safety and comply fully with Google Play’s **Device and Network Abuse policy**.
+
+- Crossword does **not** contain any harmful code or behavior.  
+- The app does **not** access or modify system settings, install other apps, or download content without consent.  
+- We do **not** misuse or exploit device or network features.  
+- All communications, if any, are securely transmitted via **HTTPS encryption**.  
+- Our development team regularly reviews the codebase to patch potential vulnerabilities.  
 
 ---
 
-## 4. Data Security
-We take reasonable steps to protect your data from unauthorized access, alteration, or disclosure. However, please understand that no method of electronic storage or transmission is completely secure.  
+## 4. Sharing of Information
+
+We do **not** sell, trade, or rent user data.  
+Limited non-personal diagnostic data may be shared with trusted analytics or crash-reporting tools **solely to improve app performance**.  
+These services adhere to strict privacy and data protection standards.
 
 ---
 
-## 5. Children’s Privacy
-Crossword is intended for users of all ages.  
-- We do not knowingly collect personal information from children under 13.  
-- If you believe your child has provided personal information, please contact us and we will delete it immediately.  
+## 5. Data Security
+
+We employ technical and administrative measures to protect any collected data from unauthorized access or misuse.  
+Although no digital system is completely secure, we continuously monitor and improve our security practices.
 
 ---
 
-## 6. Your Privacy Choices
-- You can stop all data collection by uninstalling the Game.  
+## 6. Children’s Privacy
+
+Crossword is suitable for users of all ages.  
+- We do not knowingly collect personal data from children under 13.  
+- If you believe a child has provided personal information, please contact us and we will delete it promptly.
 
 ---
 
-## 7. Changes to This Policy
-We may update this Privacy Policy from time to time. Updates will be posted here with a new “Effective Date.”  
+## 7. Your Privacy Choices
+
+- You can stop all data collection by uninstalling the app.  
+- You may also disable analytics permissions from your device settings (if applicable).
 
 ---
 
-## 8. Contact Us
-If you have any questions or concerns about this Privacy Policy or our practices, please contact us:  
+## 8. Policy Compliance and Updates
 
-📧 Email: ktmbees@gmail.com
+We comply with all relevant privacy and data protection regulations, including Google Play’s **User Data** and **Device and Network Abuse** policies.  
+Any future updates to this policy will be published here with a revised effective date.
+
+---
+
+## 9. Contact Us
+
+If you have questions or concerns regarding this Privacy Policy or data handling practices, contact us at:  
+
+📧 **Email:** ktmbees@gmail.com
