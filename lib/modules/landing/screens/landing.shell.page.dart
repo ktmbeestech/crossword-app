@@ -1,5 +1,6 @@
-
-
+ 
+ 
+import 'package:crosswords/services/audio/audio.service.dart';
 import 'package:crosswords/modules/landing/widgets/glowing_animation.widget.dart';
 import 'package:crosswords/modules/crossword/widgets/daily.rewards.dialog.dart';
 import 'package:crosswords/modules/landing/widgets/setting.widget.dart';
@@ -16,10 +17,22 @@ class CrosswordLandingPage extends StatefulWidget {
 }
 
 class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
-
+  
   void onToggleSound() {}
 
-  void onToggleMusic() {}
+  @override
+  void initState() {
+    super.initState();
+    AudioService.instance.initialize();
+  }
+
+  void onToggleMusic() async{
+    await AudioService.instance.toggleMusic();
+    setState(() {});
+  }
+
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +124,12 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                           showDialog(
                             context: context,
                             builder:
-                                (context) => SettingCrosswordWidget(onToggleMusic: onToggleMusic, onToggleSound: onToggleSound)
+                                (context) => SettingCrosswordWidget(
+                                  onToggleMusic: onToggleMusic,
+                                  onToggleSound: onToggleSound,
+                                  isMusicMuted: !AudioService.instance.isMusicEnabled,
+                                  isSoundMuted: false,
+                                )
                           );
                       },
                       child: Image.asset(

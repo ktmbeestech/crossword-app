@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:crosswords/services/audio/audio.service.dart';
 
 import 'circle.icon.widget.dart';
 
@@ -56,10 +57,18 @@ class PauseCrosswordWidget extends StatelessWidget {
                       icon: AssetImage("assets/images/home_icon.png"),
                       onTap: onHome,
                     ),
-                    circleIcon(
-                      context,
-                      icon: AssetImage( isMusicMuted? "assets/images/music_off_icon.png" : "assets/images/music_on_icon.png"),
-                      onTap: onToggleMusic,
+                    ValueListenableBuilder<bool>(
+                      valueListenable: AudioService.instance.musicEnabledListenable,
+                      builder: (context, enabled, _) {
+                        final img = enabled
+                            ? const AssetImage("assets/images/music_on_icon.png")
+                            : const AssetImage("assets/images/music_off_icon.png");
+                        return circleIcon(
+                          context,
+                          icon: img,
+                          onTap: onToggleMusic,
+                        );
+                      },
                     ),
                     circleIcon(
                       context,

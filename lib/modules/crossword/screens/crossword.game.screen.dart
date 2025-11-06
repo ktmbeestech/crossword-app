@@ -3,6 +3,7 @@ import 'package:crosswords/modules/crossword/widgets/pause.crossword.widget.dart
 import 'package:crosswords/modules/landing/screens/landing.shell.page.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:crosswords/services/audio/audio.service.dart';
 
 import '../models/crossword.data.model.dart';
 import '../services/crossword.grid.generator.dart';
@@ -45,6 +46,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
     _levelIndex = 0;
     _loadLevel(allLevels[_levelIndex]);
     _startTimer();
+    // Ensure audio service is initialized if entering directly
+    AudioService.instance.initialize();
   }
 
   void _loadLevel(CrosswordLevel level) {
@@ -446,7 +449,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
   void onToggleSound() {}
 
-  void onToggleMusic() {}
+  void onToggleMusic() async {
+    await AudioService.instance.toggleMusic();
+    if (mounted) setState(() {});
+  }
   @override
   void dispose() {
     _timer?.cancel();
@@ -564,6 +570,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
                               onResume: onResume,
                               onToggleMusic: onToggleMusic,
                               onToggleSound: onToggleSound,
+                              isMusicMuted: !AudioService.instance.isMusicEnabled,
+                              isSoundMuted: false,
                             ),
                       );
                     },
@@ -575,8 +583,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
                   SizedBox(
                     height: 48,
-
                     child: IconButton(
+
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       icon: Image.asset('assets/images/idea_hint.png'),
