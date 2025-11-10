@@ -90,7 +90,7 @@ class PauseCrosswordWidget extends StatelessWidget {
                     ),
                     onPressed: () {
                       onResume();
-                      Navigator.of(context).maybePop();
+                      Navigator.of(context).pop();
                     },
                     child: const Text(
                       'Back',

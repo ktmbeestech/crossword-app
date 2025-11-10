@@ -102,28 +102,27 @@ class CurrentClueWidget extends StatelessWidget {
     final screenH = MediaQuery.of(context).size.height;
     final base = screenH < 680 ? 13.0 : (screenH < 760 ? 14.0 : 16.0);
 
+    final text = clue == null
+        ? 'Select a clue to begin.'
+        : '${clue!.number} ${clue!.direction.name}: ${clue!.clue}';
+
     return Container(
-      padding: const EdgeInsets.all(4),
-      margin: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        children: [
-          if (clue != null)
-            Text(
-              '${clue!.number} ${clue!.direction.name}: ',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: base, color: Colors.orangeAccent),
-            ),
-          Expanded(
-            child: Text(
-              clue?.clue ?? 'Select a clue to begin.',
-              style: TextStyle(fontSize: base, color: Colors.orangeAccent),
-            ),
-          ),
-        ],
+      child: Text(
+        text,
+        textAlign: TextAlign.justify,
+        softWrap: true,
+        style: TextStyle(
+          fontSize: base,
+          color: Colors.orangeAccent,
+          fontWeight: clue == null ? FontWeight.w600 : FontWeight.w700,
+          height: 1.25,
+        ),
       ),
     );
   }

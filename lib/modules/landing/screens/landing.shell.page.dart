@@ -1,13 +1,15 @@
- 
- 
 import 'package:crosswords/services/audio/audio.service.dart';
 import 'package:crosswords/modules/landing/widgets/glowing_animation.widget.dart';
 import 'package:crosswords/modules/crossword/widgets/daily.rewards.dialog.dart';
 import 'package:crosswords/modules/landing/widgets/setting.widget.dart';
 import 'package:flutter/material.dart';
+import 'package:crosswords/modules/landing/services/hint.service.dart';
+import 'package:crosswords/modules/landing/services/daily_reward.service.dart';
 
 import '../../../constant/sizedbox/sized_box.constants.dart';
+import '../../crossword/services/level.progress.service.dart';
 import '../../crossword/screens/crossword.game.screen.dart';
+import '../../crossword/screens/level.select.screen.dart';
 
 class CrosswordLandingPage extends StatefulWidget {
   const CrosswordLandingPage({super.key});
@@ -17,22 +19,26 @@ class CrosswordLandingPage extends StatefulWidget {
 }
 
 class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
-  
   void onToggleSound() {}
+  int _hintCount = 0;
 
   @override
   void initState() {
     super.initState();
     AudioService.instance.initialize();
+    _loadHintCount();
   }
 
-  void onToggleMusic() async{
+  Future<void> _loadHintCount() async {
+    final n = await HintService.instance.getCount();
+    if (!mounted) return;
+    setState(() => _hintCount = n);
+  }
+
+  void onToggleMusic() async {
     await AudioService.instance.toggleMusic();
     setState(() {});
   }
-
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -43,10 +49,7 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
           gradient: RadialGradient(
             center: Alignment(0, -0.2),
             radius: 1.0,
-            colors: [
-              Color(0xFF100D49),
-              Color(0xFF050318),
-            ],
+            colors: [Color(0xFF100D49), Color(0xFF050318)],
           ),
         ),
         child: SafeArea(
@@ -121,16 +124,17 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                   children: [
                     InkWell(
                       onTap: () {
-                          showDialog(
-                            context: context,
-                            builder:
-                                (context) => SettingCrosswordWidget(
-                                  onToggleMusic: onToggleMusic,
-                                  onToggleSound: onToggleSound,
-                                  isMusicMuted: !AudioService.instance.isMusicEnabled,
-                                  isSoundMuted: false,
-                                )
-                          );
+                        showDialog(
+                          context: context,
+                          builder:
+                              (context) => SettingCrosswordWidget(
+                                onToggleMusic: onToggleMusic,
+                                onToggleSound: onToggleSound,
+                                isMusicMuted:
+                                    !AudioService.instance.isMusicEnabled,
+                                isSoundMuted: false,
+                              ),
+                        );
                       },
                       child: Image.asset(
                         'assets/images/setting.png',
@@ -138,9 +142,14 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                       ),
                     ),
                     sboxH30,
-                    Image.asset(
-                      'assets/images/tasks.png',
-                      height: 60,
+                    InkWell(
+                      onTap: (){
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LevelSelectScreen()),
+                        );
+                      },
+                        child: Image.asset('assets/images/tasks.png', height: 60)
                     ),
                   ],
                 ),
@@ -151,43 +160,45 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                 top: 170,
                 child: GestureDetector(
                   onTap: () async {
+                    final svc = DailyRewardService();
+                    final dayIdx = await svc.currentDayIndex();
+                    final alreadyClaimed = await svc.isClaimedToday();
                     await showDailyRewardsDialog(
                       context,
-                      currentDayIndex: 0,
-                      claimedDays: const {0},
-                      onClaim: () {
+                      currentDayIndex: dayIdx,
+                      claimedDays: alreadyClaimed ? {dayIdx} : const <int>{},
+                      onClaim: () async {
+                        final n = await svc.claimDailyAndGrantHints();
+                        if (n != null && mounted) setState(() => _hintCount = n);
                         Navigator.of(context).pop();
                       },
                     );
                   },
                   child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Image.asset(
-                      'assets/images/idea_hint.png',
-                      height: 60,
-                    ),
-                    Positioned(
-                      right: -6,
-                      top: -6,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFE53935),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Text(
-                          '3',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                    clipBehavior: Clip.none,
+                    children: [
+                      Image.asset('assets/images/idea_hint.png', height: 60),
+                      Positioned(
+                        right: -6,
+                        top: -6,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE53935),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '$_hintCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
               ),
 
               Align(
@@ -212,10 +223,14 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                       ),
                       minimumSize: const Size(280, 56),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
+                      final index = await LevelProgressService.instance.nextPlayableIndex();
+                      if (!mounted) return;
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const CrosswordPage()),
+                        MaterialPageRoute(
+                          builder: (context) => CrosswordPage(startLevelIndex: index),
+                        ),
                       );
                     },
                     child: SizedBox(
@@ -231,7 +246,10 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                                 color: Colors.yellow[700],
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
                               child: const Text(
                                 'A',
                                 style: TextStyle(

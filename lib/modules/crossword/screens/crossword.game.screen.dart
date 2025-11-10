@@ -1,18 +1,22 @@
 import 'package:crosswords/constant/sizedbox/sized_box.constants.dart';
+import 'package:crosswords/modules/crossword/data/crossword.level.data2.dart';
 import 'package:crosswords/modules/crossword/widgets/pause.crossword.widget.dart';
 import 'package:crosswords/modules/landing/screens/landing.shell.page.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:crosswords/services/audio/audio.service.dart';
+import 'package:crosswords/modules/crossword/services/level.progress.service.dart';
+import 'package:crosswords/modules/landing/services/hint.service.dart';
+import 'package:crosswords/modules/landing/services/daily_reward.service.dart';
 
 import '../models/crossword.data.model.dart';
 import '../services/crossword.grid.generator.dart';
 import '../widgets/crossword.widgets.dart';
 import '../widgets/custom.keyboard.widget.dart';
-import '../data/crossword.level.data.dart';
 
 class CrosswordPage extends StatefulWidget {
-  const CrosswordPage({super.key});
+  final int startLevelIndex;
+  const CrosswordPage({super.key, this.startLevelIndex = 0});
 
   @override
   State<CrosswordPage> createState() => _CrosswordPageState();
@@ -42,12 +46,20 @@ class _CrosswordPageState extends State<CrosswordPage> {
   @override
   void initState() {
     super.initState();
-    // Load the first level and start timer
-    _levelIndex = 0;
+    // Initialize from provided start index or saved progress
+    _levelIndex = widget.startLevelIndex;
+    _levelIndex = _levelIndex.clamp(0, allLevels.length - 1);
     _loadLevel(allLevels[_levelIndex]);
     _startTimer();
     // Ensure audio service is initialized if entering directly
     AudioService.instance.initialize();
+    _loadHintCount();
+  }
+
+  Future<void> _loadHintCount() async {
+    final n = await HintService.instance.getCount();
+    if (!mounted) return;
+    setState(() => _hintsRemaining = n);
   }
 
   void _loadLevel(CrosswordLevel level) {
@@ -61,7 +73,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
       highlightedCellIndices = {};
       _userInput.clear();
       _incorrectCells.clear();
-      _hintsRemaining = 3;
+      // do not reset hints here; they are global and persisted via HintService
       _resetTimer();
 
       // Automatically select the first clue
@@ -120,11 +132,11 @@ class _CrosswordPageState extends State<CrosswordPage> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   CurrentClueWidget(clue: activeClue),
                   const SizedBox(height: 8),
-                  SizedBox(
-                    height: 150,
+                  Flexible(
                     child: CustomKeyboard(onKeyPress: _handleKeyPress),
                   ),
                 ],
@@ -159,7 +171,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
   void _setSelectedCell(int index, {bool fromUserTap = false}) {
     setState(() {
-      // CRITICAL FIX 2: Guard against self-recursion.
+      
       if (selectedCellIndex == index) {
         return;
       }
@@ -169,16 +181,13 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
       // Logic to set/change the active clue when a cell is tapped
       if (cell.clueIds.isNotEmpty) {
-        // Behavior rules:
-        // - When moving programmatically (typing/auto-advance), DO NOT toggle clue at intersections.
-        // - When user taps a cell that is an intersection and already in active clue, toggle to the other clue.
-        // - If there is no active clue or it doesn't include this cell, pick the first clue for the cell.
+        
         String targetClueId = activeClue?.id ?? '';
         if (fromUserTap &&
             activeClue != null &&
             cell.clueIds.length > 1 &&
             cell.clueIds.contains(activeClue!.id)) {
-          // Toggle to the other clue only on user tap
+         
           targetClueId = cell.clueIds.firstWhere(
             (id) => id != activeClue!.id,
             orElse: () => activeClue!.id,
@@ -197,7 +206,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
           }
         }
       } else {
-        // It's a non-clue cell (a black square)
+        
         activeClue = null;
         highlightedCellIndices = {};
       }
@@ -212,7 +221,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
       if (key == 'DEL') {
         _handleDelete();
       } else {
-        // Validate against correct letter for this cell
+        
         final idx = selectedCellIndex!;
         final expected = gridData.grid[idx].correctLetter?.toUpperCase();
         final value = key.toUpperCase();
@@ -221,7 +230,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
           _incorrectCells.remove(idx);
           _autoAdvanceCursor();
         } else {
-          // mark incorrect and do not advance
+          
           _incorrectCells.add(idx);
         }
       }
@@ -233,42 +242,50 @@ class _CrosswordPageState extends State<CrosswordPage> {
   void _handleDelete() {
     if (selectedCellIndex == null) return;
 
-    // 1. Clear the letter in the current cell
+  
     _userInput.remove(selectedCellIndex);
     _incorrectCells.remove(selectedCellIndex);
 
-    // 2. Find the index of the current cell in the active clue
     final clueCells =
         activeClue == null ? const <int>[] : _cellsForClue(activeClue!);
     final currentIndexInClue = clueCells.indexOf(selectedCellIndex!);
 
-    // 3. Move the selection one cell back, if possible
+   
     if (currentIndexInClue > 0) {
       final prevCellIndex = clueCells[currentIndexInClue - 1];
-      // Note: We call _setSelectedCell which contains the setState.
+      
       _setSelectedCell(prevCellIndex);
     }
-    // If at the start of the clue, just clear the input and stay there.
+    
   }
 
   /// Logic to automatically advance the cursor to the next cell in the active clue.
   void _autoAdvanceCursor() {
     if (activeClue == null || selectedCellIndex == null) return;
 
-    // 1. Get the list of cell indices belonging to the active clue
+    
     final clueCells = _cellsForClue(activeClue!);
 
-    // 2. Find the index of the currently selected cell within that list
+    
     final currentIndexInClue = clueCells.indexOf(selectedCellIndex!);
 
-    // 3. If there is a next cell in the clue, move the selection there
+    
     if (currentIndexInClue < clueCells.length - 1) {
       final nextCellIndex = clueCells[currentIndexInClue + 1];
-      // Move without toggling clues
+      
       _setSelectedCell(nextCellIndex, fromUserTap: false);
     } else {
-      // Word is complete
+      
       print('Word ${activeClue!.answer} is complete.');
+      if (_isInputSheetOpen) {
+        // Close the keyboard/input sheet when a word completes
+        Navigator.of(context).maybePop();
+        if (mounted) {
+          setState(() {
+            _isInputSheetOpen = false;
+          });
+        }
+      }
     }
   }
 
@@ -320,8 +337,14 @@ class _CrosswordPageState extends State<CrosswordPage> {
         setState(() {
           _userInput[idx] = correct ?? '';
           selectedCellIndex = idx;
-          _hintsRemaining -= 1;
+          _hintsRemaining = (_hintsRemaining - 1).clamp(0, 1 << 30);
           _incorrectCells.remove(idx);
+        });
+        // persist consumption
+        HintService.instance.consume(1).then((n) {
+          if (mounted) {
+            setState(() => _hintsRemaining = n);
+          }
         });
         _autoAdvanceCursor();
         _checkForCompletion();
@@ -335,48 +358,97 @@ class _CrosswordPageState extends State<CrosswordPage> {
       context: context,
       builder: (context) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Clues',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+          child: Material(
+            color: Colors.transparent,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 420,
                 ),
-                const SizedBox(height: 12),
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: currentLevel.clues.length,
-                    itemBuilder: (context, i) {
-                      final clue = currentLevel.clues[i];
-                      return ListTile(
-                        dense: true,
-                        title: Text(
-                          '${clue.number} ${clue.direction.name}'.toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
+                child: Container(
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFF0D0B2E), Color(0xFF0F0B4A)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                    border: Border.all(color: Colors.white24, width: 1),
+                  ),
+                  child: Builder(
+                    builder: (context) {
+                      final across = currentLevel.clues
+                          .where((c) => c.direction == Direction.across)
+                          .toList();
+                      final down = currentLevel.clues
+                          .where((c) => c.direction == Direction.down)
+                          .toList();
+
+                      TextStyle headerStyle = const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      );
+                      TextStyle clueStyle = const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                      );
+
+                      Widget buildSection(String title, List<Clue> items) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: headerStyle),
+                            const SizedBox(height: 8),
+                            ...items.map((clue) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _setActiveClue(clue);
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 4, horizontal: 4),
+                                    child: Text(
+                                      '${clue.number}. ${clue.clue}',
+                                      style: clueStyle,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ],
+                        );
+                      }
+
+                      return SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            buildSection('Across', across),
+                            const SizedBox(height: 14),
+                            buildSection('Down', down),
+                          ],
                         ),
-                        subtitle: Text(
-                          clue.clue,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _setActiveClue(clue);
-                        },
                       );
                     },
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         );
@@ -411,8 +483,20 @@ class _CrosswordPageState extends State<CrosswordPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
+                // Save progress
+                await LevelProgressService.instance
+                    .markCompleted(currentLevel.id);
+                // Grant one-time completion bonus (5 hints)
+                final bonus = await DailyRewardService()
+                    .grantLevelCompletionBonus(currentLevel.id, amount: 5);
+                if (bonus != null && mounted) {
+                  setState(() => _hintsRemaining = bonus);
+                }
+                // Move current index forward if we just finished the current gate
+                final nextIndex = (_levelIndex + 1).clamp(0, allLevels.length - 1);
+                await LevelProgressService.instance.setCurrentIndex(nextIndex);
                 _nextLevel();
               },
               child: const Text('Next', style: TextStyle(color: Colors.yellow)),
@@ -432,6 +516,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
   }
 
   void _skipLevel() {
+    // Mark skipped and advance, also update current index
+    LevelProgressService.instance.markSkipped(currentLevel.id);
+    LevelProgressService.instance
+        .setCurrentIndex((_levelIndex + 1).clamp(0, allLevels.length - 1));
     _nextLevel();
   }
 
@@ -443,7 +531,6 @@ class _CrosswordPageState extends State<CrosswordPage> {
   }
 
   void onResume() {
-    Navigator.pop(context);
     _resumeTimer();
   }
 
@@ -582,14 +669,40 @@ class _CrosswordPageState extends State<CrosswordPage> {
                   ),
 
                   SizedBox(
+                    width: 48,
                     height: 48,
-                    child: IconButton(
-
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      icon: Image.asset('assets/images/idea_hint.png'),
-                      onPressed: _useHint,
-                      tooltip: 'Use hint',
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned.fill(
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: Image.asset('assets/images/idea_hint.png'),
+                            onPressed: _useHint,
+                            tooltip: 'Use hint',
+                          ),
+                        ),
+                        Positioned(
+                          right: -6,
+                          top: -6,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFE53935),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$_hintsRemaining',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

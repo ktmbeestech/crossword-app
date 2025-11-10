@@ -35,6 +35,7 @@ class DailyRewardsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final alreadyClaimedToday = claimedDays.contains(currentDayIndex);
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -93,6 +94,7 @@ class DailyRewardsDialog extends StatelessWidget {
                     final day = i + 1;
                     final isActive = i == currentDayIndex;
                     final isClaimed = claimedDays.contains(i);
+                    final isMissed = i < currentDayIndex && !isClaimed;
                     final rewardMultiplier = i == 0
                         ? 'x1'
                         : i == 1
@@ -111,6 +113,7 @@ class DailyRewardsDialog extends StatelessWidget {
                       rewardLabel: rewardMultiplier,
                       isActive: isActive,
                       isClaimed: isClaimed,
+                      isMissed: isMissed,
                     );
                   }),
                 ),
@@ -121,7 +124,17 @@ class DailyRewardsDialog extends StatelessWidget {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: onClaim,
+                    onPressed: () {
+                      if (alreadyClaimedToday) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Already claimed today. Come back tomorrow!'),
+                          ),
+                        );
+                        return;
+                      }
+                      onClaim();
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFFD166),
                       foregroundColor: const Color(0xFF3B2F00),
@@ -189,6 +202,7 @@ class DayRewardTile extends StatelessWidget {
   final String rewardLabel;
   final bool isActive;
   final bool isClaimed;
+  final bool isMissed;
 
   const DayRewardTile({
     super.key,
@@ -196,6 +210,7 @@ class DayRewardTile extends StatelessWidget {
     required this.rewardLabel,
     required this.isActive,
     required this.isClaimed,
+    this.isMissed = false,
   });
 
   @override
@@ -289,6 +304,26 @@ class DayRewardTile extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.all(2),
                 child: const Icon(Icons.check, size: 16, color: Colors.black),
+              ),
+            ),
+          if (isMissed && !isClaimed)
+            Positioned(
+              right: 6,
+              top: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.shade200,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'Missed',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
         ],
