@@ -24,8 +24,15 @@ class CrosswordGrid {
   /// A 1D list representing the 2D grid.
   /// Access with: grid[row * cols + col]
   final List<CellData> grid;
+  /// Map of clueId -> (otherClueId -> common uppercase letter at intersection)
+  final Map<String, Map<String, String>> commonLetters;
 
-  CrosswordGrid({required this.rows, required this.cols, required this.grid});
+  CrosswordGrid({
+    required this.rows,
+    required this.cols,
+    required this.grid,
+    Map<String, Map<String, String>>? commonLetters,
+  }) : commonLetters = commonLetters ?? <String, Map<String, String>>{};
 }
 
 class CrosswordGenerator {
@@ -90,6 +97,32 @@ class CrosswordGenerator {
       }
     }
 
-    return CrosswordGrid(rows: level.rows, cols: level.cols, grid: grid);
+    // 3. Compute common letters between intersecting clues
+    final Map<String, Map<String, String>> commons = {};
+    for (final cell in grid) {
+      if (cell.isBlocked) continue;
+      if ((cell.clueIds.length) < 2) continue;
+      final letter = (cell.correctLetter ?? '').toUpperCase();
+      if (letter.isEmpty) continue;
+
+      // For all pairs
+      for (int i = 0; i < cell.clueIds.length; i++) {
+        for (int j = i + 1; j < cell.clueIds.length; j++) {
+          final a = cell.clueIds[i];
+          final b = cell.clueIds[j];
+          commons.putIfAbsent(a, () => {});
+          commons.putIfAbsent(b, () => {});
+          commons[a]![b] = letter;
+          commons[b]![a] = letter;
+        }
+      }
+    }
+
+    return CrosswordGrid(
+      rows: level.rows,
+      cols: level.cols,
+      grid: grid,
+      commonLetters: commons,
+    );
   }
 }

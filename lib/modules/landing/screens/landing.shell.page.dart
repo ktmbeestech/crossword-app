@@ -161,12 +161,23 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                 child: GestureDetector(
                   onTap: () async {
                     final svc = DailyRewardService();
-                    final dayIdx = await svc.currentDayIndex();
+                    final streak = await svc.currentStreak();
                     final alreadyClaimed = await svc.isClaimedToday();
+                    final base = streak % 7; // 0..6 index for current cycle
+                    final claimed = <int>{};
+                    if (alreadyClaimed) {
+                      for (var i = 0; i <= base; i++) {
+                        claimed.add(i);
+                      }
+                    } else {
+                      for (var i = 0; i < base; i++) {
+                        claimed.add(i);
+                      }
+                    }
                     await showDailyRewardsDialog(
                       context,
-                      currentDayIndex: dayIdx,
-                      claimedDays: alreadyClaimed ? {dayIdx} : const <int>{},
+                      currentDayIndex: base,
+                      claimedDays: claimed,
                       onClaim: () async {
                         final n = await svc.claimDailyAndGrantHints();
                         if (n != null && mounted) setState(() => _hintCount = n);

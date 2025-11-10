@@ -128,10 +128,10 @@ class DailyRewardsDialog extends StatelessWidget {
                       if (alreadyClaimedToday) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Already claimed today. Come back tomorrow!'),
+                            content: Text('Already claimed. Come back tomorrow!'),
                           ),
                         );
-                        return;
+                        return Navigator.of(context).pop();
                       }
                       onClaim();
                     },

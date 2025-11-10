@@ -9,6 +9,7 @@ class CellWidget extends StatelessWidget {
   final bool isHighlighted;
   final bool isIncorrect;
   final VoidCallback onTap;
+  final String? cornerHint; // e.g., intersection common letter
 
   const CellWidget({
     super.key,
@@ -18,6 +19,7 @@ class CellWidget extends StatelessWidget {
     required this.isHighlighted,
     this.isIncorrect = false,
     required this.onTap,
+    this.cornerHint,
   });
 
   @override
@@ -48,6 +50,9 @@ class CellWidget extends StatelessWidget {
           final clueBadgeSize = cellSide * 0.24;
           final clueTop = cellSide * 0.06;
           final clueLeft = cellSide * 0.08;
+          final hintBadgeSize = cellSide * 0.22;
+          final hintTop = cellSide * 0.06;
+          final hintRight = cellSide * 0.08;
 
           return Container(
             decoration: BoxDecoration(
@@ -66,6 +71,19 @@ class CellWidget extends StatelessWidget {
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                             fontSize: clueBadgeSize.clamp(8.0, 14.0),
                             color: Colors.white70,
+                          ),
+                    ),
+                  ),
+                if ((cornerHint ?? '').isNotEmpty)
+                  Positioned(
+                    top: hintTop,
+                    right: hintRight,
+                    child: Text(
+                      cornerHint!,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontSize: hintBadgeSize.clamp(8.0, 13.0),
+                            color: Colors.yellowAccent,
+                            fontWeight: FontWeight.w700,
                           ),
                     ),
                   ),

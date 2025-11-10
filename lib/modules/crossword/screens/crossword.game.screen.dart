@@ -2,6 +2,7 @@ import 'package:crosswords/constant/sizedbox/sized_box.constants.dart';
 import 'package:crosswords/modules/crossword/data/crossword.level.data2.dart';
 import 'package:crosswords/modules/crossword/widgets/pause.crossword.widget.dart';
 import 'package:crosswords/modules/landing/screens/landing.shell.page.dart';
+import 'level.select.screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:crosswords/services/audio/audio.service.dart';
@@ -26,12 +27,13 @@ class _CrosswordPageState extends State<CrosswordPage> {
   // --- Game State ---
 
   late CrosswordLevel currentLevel;
-  late CrosswordGrid gridData;
+  CrosswordGrid? gridData;
   late Clue? activeClue;
   late Set<int> highlightedCellIndices;
   int? selectedCellIndex;
   final Map<int, String> _userInput = {}; // Stores user's letters
   final Set<int> _incorrectCells = {}; // Tracks cells with incorrect letters
+  bool _isGenerating = false; // Show overlay while generating grid
 
   // --- Level & Timer State ---
   int _levelIndex = 0;
@@ -56,16 +58,60 @@ class _CrosswordPageState extends State<CrosswordPage> {
     _loadHintCount();
   }
 
+  /// Toggle the active clue direction (across/down) for the current selected cell,
+  /// if that cell belongs to multiple clues.
+  void _toggleClueDirection() {
+    if (selectedCellIndex == null) return;
+    final cell = gridData!.grid[selectedCellIndex!];
+    if (cell.clueIds.length < 2) return;
+
+    if (activeClue == null) {
+      final id = cell.clueIds.first;
+      final newClue = currentLevel.clues.firstWhere((c) => c.id == id);
+      _setActiveClue(newClue);
+      return;
+    }
+
+    final otherId = cell.clueIds.firstWhere(
+      (id) => id != activeClue!.id,
+      orElse: () => activeClue!.id,
+    );
+    if (otherId != activeClue!.id) {
+      final newClue = currentLevel.clues.firstWhere((c) => c.id == otherId,
+          orElse: () => activeClue!);
+      if (newClue.id != activeClue!.id) {
+        _setActiveClue(newClue);
+        // If input sheet is open, refresh it so header reflects new clue
+        if (_isInputSheetOpen) {
+          Navigator.of(context).pop();
+          Future.delayed(const Duration(milliseconds: 20), () {
+            if (mounted) _openInputSheet();
+          });
+        }
+      }
+    }
+  }
+
   Future<void> _loadHintCount() async {
     final n = await HintService.instance.getCount();
     if (!mounted) return;
     setState(() => _hintsRemaining = n);
   }
 
-  void _loadLevel(CrosswordLevel level) {
+  Future<void> _loadLevel(CrosswordLevel level) async {
+    setState(() {
+      _isGenerating = true;
+    });
+
+    // Small delay so the overlay is visible before heavy work
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    // Generate grid synchronously
+    final generated = CrosswordGenerator.generateGrid(level);
+
     setState(() {
       currentLevel = level;
-      gridData = CrosswordGenerator.generateGrid(level);
+      gridData = generated;
 
       // Reset state
       activeClue = null;
@@ -77,10 +123,16 @@ class _CrosswordPageState extends State<CrosswordPage> {
       _resetTimer();
 
       // Automatically select the first clue
-      if (currentLevel.clues.isNotEmpty) {
-        _setActiveClue(currentLevel.clues.first);
+      if (level.clues.isNotEmpty) {
+        _setActiveClue(level.clues.first);
       }
     });
+
+    // Keep overlay briefly to feel responsive
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (mounted) {
+      setState(() => _isGenerating = false);
+    }
   }
 
   // --- Game Logic ---
@@ -97,7 +149,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
       int c = clue.startCol;
 
       for (int i = 0; i < clue.answer.length; i++) {
-        final index = (r * gridData.cols) + c;
+        final index = (r * gridData!.cols) + c;
         highlightedCellIndices.add(index);
 
         if (clue.direction == Direction.across) {
@@ -107,8 +159,18 @@ class _CrosswordPageState extends State<CrosswordPage> {
         }
       }
 
-      // Select the first cell of the new clue
-      _setSelectedCell((clue.startRow * gridData.cols) + clue.startCol);
+      // Select first not-correct cell of the clue (skip already-correct intersections)
+      final cells = _cellsForClue(clue);
+      int target = cells.first;
+      for (final idx in cells) {
+        final correct = (gridData!.grid[idx].correctLetter ?? '').toUpperCase();
+        final current = (_userInput[idx] ?? '').toUpperCase();
+        if (current != correct) {
+          target = idx;
+          break;
+        }
+      }
+      _setSelectedCell(target);
     });
   }
 
@@ -134,7 +196,16 @@ class _CrosswordPageState extends State<CrosswordPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CurrentClueWidget(clue: activeClue),
+                  Row(
+                    children: [
+                      Expanded(child: CurrentClueWidget(clue: activeClue)),
+                      IconButton(
+                        tooltip: 'Toggle Across/Down',
+                        onPressed: _toggleClueDirection,
+                        icon: const Icon(Icons.swap_horiz, color: Colors.yellowAccent),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
                   Flexible(
                     child: CustomKeyboard(onKeyPress: _handleKeyPress),
@@ -159,7 +230,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
     int r = clue.startRow;
     int c = clue.startCol;
     for (int i = 0; i < clue.answer.length; i++) {
-      indices.add((r * gridData.cols) + c);
+      indices.add((r * gridData!.cols) + c);
       if (clue.direction == Direction.across) {
         c++;
       } else {
@@ -177,7 +248,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
       }
 
       selectedCellIndex = index;
-      final cell = gridData.grid[index];
+      final cell = gridData!.grid[index];
 
       // Logic to set/change the active clue when a cell is tapped
       if (cell.clueIds.isNotEmpty) {
@@ -223,7 +294,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
       } else {
         
         final idx = selectedCellIndex!;
-        final expected = gridData.grid[idx].correctLetter?.toUpperCase();
+        final expected = gridData!.grid[idx].correctLetter?.toUpperCase();
         final value = key.toUpperCase();
         _userInput[idx] = value;
         if (expected != null && value == expected) {
@@ -246,8 +317,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
     _userInput.remove(selectedCellIndex);
     _incorrectCells.remove(selectedCellIndex);
 
-    final clueCells =
-        activeClue == null ? const <int>[] : _cellsForClue(activeClue!);
+    final clueCells = activeClue == null ? const <int>[] : _cellsForClue(activeClue!);
     final currentIndexInClue = clueCells.indexOf(selectedCellIndex!);
 
    
@@ -263,17 +333,22 @@ class _CrosswordPageState extends State<CrosswordPage> {
   void _autoAdvanceCursor() {
     if (activeClue == null || selectedCellIndex == null) return;
 
-    
     final clueCells = _cellsForClue(activeClue!);
-
-    
     final currentIndexInClue = clueCells.indexOf(selectedCellIndex!);
+    // Find next not-correct cell within this clue
+    int? nextIdx;
+    for (int i = currentIndexInClue + 1; i < clueCells.length; i++) {
+      final idx = clueCells[i];
+      final correct = (gridData!.grid[idx].correctLetter ?? '').toUpperCase();
+      final current = (_userInput[idx] ?? '').toUpperCase();
+      if (current != correct) {
+        nextIdx = idx;
+        break;
+      }
+    }
 
-    
-    if (currentIndexInClue < clueCells.length - 1) {
-      final nextCellIndex = clueCells[currentIndexInClue + 1];
-      
-      _setSelectedCell(nextCellIndex, fromUserTap: false);
+    if (nextIdx != null) {
+      _setSelectedCell(nextIdx, fromUserTap: false);
     } else {
       
       print('Word ${activeClue!.answer} is complete.');
@@ -331,7 +406,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
     // find first incorrect or empty cell in current clue
     final cells = _cellsForClue(activeClue!);
     for (final idx in cells) {
-      final correct = gridData.grid[idx].correctLetter?.toUpperCase();
+      final correct = gridData!.grid[idx].correctLetter?.toUpperCase();
       final current = _userInput[idx];
       if (current != correct) {
         setState(() {
@@ -458,8 +533,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
   // --- Completion & Level progression ---
   void _checkForCompletion() {
-    for (int i = 0; i < gridData.grid.length; i++) {
-      final cell = gridData.grid[i];
+    for (int i = 0; i < gridData!.grid.length; i++) {
+      final cell = gridData!.grid[i];
       if (cell.isBlocked) continue;
       if ((_userInput[i] ?? '').toUpperCase() !=
           (cell.correctLetter ?? '').toUpperCase()) {
@@ -467,6 +542,14 @@ class _CrosswordPageState extends State<CrosswordPage> {
       }
     }
     _pauseTimer();
+
+    // Dismiss any open overlays (keyboard bottom sheet, clue dialog)
+    if (_isInputSheetOpen) {
+      Navigator.of(context).maybePop();
+      if (mounted) setState(() => _isInputSheetOpen = false);
+    }
+    // Pop any remaining dialogs to ensure a clean completion dialog
+    Navigator.of(context).popUntil((route) => route is PageRoute);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -477,9 +560,20 @@ class _CrosswordPageState extends State<CrosswordPage> {
             'Level Complete',
             style: TextStyle(color: Colors.white),
           ),
-          content: Text(
-            'Time: ${_formatTime(_seconds)}',
-            style: const TextStyle(color: Colors.white70),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Time: ${_formatTime(_seconds)}',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Reward: 5 hints',
+                style: TextStyle(color: Colors.yellowAccent, fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -509,14 +603,48 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
   void _nextLevel() {
     setState(() {
-      _levelIndex = (_levelIndex + 1) % allLevels.length;
+      _levelIndex = (
+        _levelIndex + 1
+      ) % allLevels.length;
     });
     _loadLevel(allLevels[_levelIndex]);
     _resumeTimer();
   }
 
   void _skipLevel() {
-    // Mark skipped and advance, also update current index
+    // If last level, prompt to go to Levels page instead of wrapping
+    if (_levelIndex >= allLevels.length - 1) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF253153),
+          title: const Text('End of Levels', style: TextStyle(color: Colors.white)),
+          content: const Text(
+            'You\'ve reached the end of available levels. Go to the Level Select page?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LevelSelectScreen()),
+                );
+              },
+              child: const Text('Go to Levels', style: TextStyle(color: Colors.yellow)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Mark skipped and advance to next level, also update current index
     LevelProgressService.instance.markSkipped(currentLevel.id);
     LevelProgressService.instance
         .setCurrentIndex((_levelIndex + 1).clamp(0, allLevels.length - 1));
@@ -711,72 +839,102 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
               // --- 1. The Crossword Grid (expanded) ---
               Expanded(
-                child: Center(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom:
-                          _isInputSheetOpen
+                child: Stack(
+                  children: [
+                    Center(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          bottom: _isInputSheetOpen
                               ? (MediaQuery.of(context).size.height * 0.36)
                               : 0,
-                    ),
-                    child: AspectRatio(
-                      aspectRatio: 1.0,
-                      child: GridView.builder(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: gridData.cols,
-                          crossAxisSpacing: 2,
-                          mainAxisSpacing: 2,
                         ),
-                        itemCount: gridData.rows * gridData.cols,
-                        itemBuilder: (context, index) {
-                          final cellData = gridData.grid[index];
+                        child: AspectRatio(
+                          aspectRatio: 1.0,
+                          child: gridData == null
+                              ? const Center(
+                                  child: CircularProgressIndicator(),
+                                )
+                              : GridView.builder(
+                                  gridDelegate:
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: gridData!.cols,
+                                    crossAxisSpacing: 2,
+                                    mainAxisSpacing: 2,
+                                  ),
+                                  itemCount: gridData!.rows * gridData!.cols,
+                                  itemBuilder: (context, index) {
+                                    final cellData = gridData!.grid[index];
 
-                          if (cellData.isBlocked) {
-                            return Container(color: Colors.transparent);
-                          }
+                                    if (cellData.isBlocked) {
+                                      return Container(color: Colors.transparent);
+                                    }
 
-                          return CellWidget(
-                            letter: _userInput[index] ?? '',
-                            clueNumber: cellData.clueNumber,
-                            isSelected: index == selectedCellIndex,
-                            isHighlighted: highlightedCellIndices.contains(
-                              index,
-                            ),
-                            isIncorrect: _incorrectCells.contains(index),
-                            onTap: () {
-                              _setSelectedCell(index, fromUserTap: true);
-                              _openInputSheet();
-                            },
-                          );
-                        },
+                                    final correct =
+                                        (cellData.correctLetter ?? '').toUpperCase();
+                                    final current =
+                                        (_userInput[index] ?? '').toUpperCase();
+                                    final showCorner =
+                                        ((cellData.clueIds.length >= 2) ||
+                                                (cellData.clueNumber != null)) &&
+                                            current != correct;
+
+                                    return CellWidget(
+                                      letter: _userInput[index] ?? '',
+                                      clueNumber: cellData.clueNumber,
+                                      isSelected: index == selectedCellIndex,
+                                      isHighlighted:
+                                          highlightedCellIndices.contains(index),
+                                      isIncorrect: _incorrectCells.contains(index),
+                                      cornerHint: showCorner ? correct : null,
+                                      onTap: () {
+                                        _setSelectedCell(index, fromUserTap: true);
+                                        _openInputSheet();
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
                       ),
                     ),
-                  ),
+
+                    // --- Generating Overlay ---
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        ignoring: !_isGenerating,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 150),
+                          opacity: _isGenerating ? 1.0 : 0.0,
+                          child: Container(
+                            color: Colors.black54,
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 4,
+                                      color: Colors.yellow,
+                                    ),
+                                  ),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'Generating level...',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-
-                // // --- 3. Clue List (Simplified) ---
-                // Container(
-                //   height: 100,
-                //   padding: const EdgeInsets.symmetric(vertical: 16),
-                //   child: ListView(
-                //     scrollDirection: Axis.horizontal,
-                //     children: currentLevel.clues.map((clue) {
-                //       return Padding(
-                //         padding: const EdgeInsets.only(right: 8.0),
-                //         child: ActionChip(
-                //           label: Text('${clue.number}. ${clue.direction.name}'),
-                //           backgroundColor: activeClue?.id == clue.id ? Colors.blueAccent : Colors.grey[700],
-                //           onPressed: () {
-                //             _setActiveClue(clue);
-                //           },
-                //         ),
-                //       );
-                //     }).toList(),
-                //   ),
-                // ),
-
-                // --- 4. The Custom Keyboard ---
-                // Moved to Scaffold.bottomNavigationBar to pin at bottom
               ),
             ],
           ),
