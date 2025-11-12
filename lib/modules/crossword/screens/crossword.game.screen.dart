@@ -192,7 +192,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -206,7 +206,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  sboxH6,
                   Flexible(
                     child: CustomKeyboard(onKeyPress: _handleKeyPress),
                   ),
