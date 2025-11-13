@@ -9,13 +9,18 @@ class AudioService with WidgetsBindingObserver {
   AudioService._internal();
 
   final ValueNotifier<bool> _musicEnabledNotifier = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> _sfxEnabledNotifier = ValueNotifier<bool>(true);
   ValueListenable<bool> get musicEnabledListenable => _musicEnabledNotifier;
+  ValueListenable<bool> get sfxEnabledListenable => _sfxEnabledNotifier;
   bool get isMusicEnabled => _musicEnabledNotifier.value;
+  bool get isSfxEnabled => _sfxEnabledNotifier.value;
 
   AudioPlayer? _player;
+  AudioPlayer? _sfxPlayer;
   bool _initialized = false;
 
   static const String _musicEnabledKey = 'music_enabled';
+  static const String _sfxEnabledKey = 'sfx_enabled';
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -25,7 +30,11 @@ class AudioService with WidgetsBindingObserver {
     if (saved != null) {
       _musicEnabledNotifier.value = saved == 'true';
     }
-    debugPrint('[AudioService] initialize: musicEnabled=${_musicEnabledNotifier.value}');
+    final savedSfx = await storageInstance.getData(key: _sfxEnabledKey);
+    if (savedSfx != null) {
+      _sfxEnabledNotifier.value = savedSfx == 'true';
+    }
+    debugPrint('[AudioService] initialize: musicEnabled=${_musicEnabledNotifier.value}, sfxEnabled=${_sfxEnabledNotifier.value}');
     try {
       WidgetsBinding.instance.addObserver(this);
       _player ??= AudioPlayer();
@@ -67,6 +76,14 @@ class AudioService with WidgetsBindingObserver {
         debugPrint('[AudioService] setPlayerMode failed: $e');
       }
       await _player!.setReleaseMode(ReleaseMode.loop);
+      try {
+        _sfxPlayer ??= AudioPlayer();
+        await _sfxPlayer!.setPlayerMode(PlayerMode.lowLatency);
+        await _sfxPlayer!.setReleaseMode(ReleaseMode.stop);
+        await _sfxPlayer!.setVolume(1.0);
+      } catch (e) {
+        debugPrint('[AudioService] sfx player setup failed: $e');
+      }
       if (isMusicEnabled) {
         await _safePlay();
       }
@@ -83,30 +100,95 @@ class AudioService with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _persistSfx() async {
+    await storageInstance.setData(
+      key: _sfxEnabledKey,
+      value: _sfxEnabledNotifier.value.toString(),
+    );
+  }
+
   Future<void> toggleMusic() async {
-    await initialize();
-    if (isMusicEnabled) {
-      debugPrint('[AudioService] toggleMusic -> disabling');
-      _musicEnabledNotifier.value = false;
-      if (_player != null) {
-        await _player!.pause();
+    try {
+      await initialize();
+      if (isMusicEnabled) {
+        debugPrint('[AudioService] toggleMusic -> disabling');
+        _musicEnabledNotifier.value = false;
+        if (_player != null) {
+          try {
+            final state = _player!.state;
+            final currentState = state is Future ? await state : state;
+            debugPrint('[AudioService] toggleMusic: currentState=$currentState');
+            await _player!.stop();
+            debugPrint('[AudioService] toggleMusic: stopped');
+          } catch (e, st) {
+            debugPrint('[AudioService] toggleMusic: state/pause handling failed: $e');
+            debugPrint('$st');
+            try {
+              await _player!.stop();
+            } catch (_) {}
+          }
+          // Dispose the player to avoid lingering platform state
+          try {
+            await _player!.release();
+          } catch (_) {}
+          try {
+            await _player!.dispose();
+          } catch (_) {}
+          _player = null;
+        }
+      } else {
+        debugPrint('[AudioService] toggleMusic -> enabling');
+        _musicEnabledNotifier.value = true;
+        await _safeResume();
       }
-    } else {
-      debugPrint('[AudioService] toggleMusic -> enabling');
-      _musicEnabledNotifier.value = true;
-      await _safeResume();
+      await _persist();
+    } catch (e, st) {
+      debugPrint('[AudioService] toggleMusic: unexpected error $e');
+      debugPrint('$st');
     }
-    await _persist();
+  }
+
+  Future<void> toggleSfx() async {
+    await initialize();
+    _sfxEnabledNotifier.value = !_sfxEnabledNotifier.value;
+    debugPrint('[AudioService] toggleSfx -> ${_sfxEnabledNotifier.value ? 'enabling' : 'disabling'}');
+    await _persistSfx();
   }
 
   Future<void> _safePlay() async {
     try {
       _player ??= AudioPlayer();
+      try {
+        await _player!.setAudioContext(
+          AudioContext(
+            android: AudioContextAndroid(
+              contentType: AndroidContentType.music,
+              usageType: AndroidUsageType.media,
+              audioFocus: AndroidAudioFocus.gain,
+              isSpeakerphoneOn: true,
+              stayAwake: false,
+            ),
+            iOS: AudioContextIOS(
+              category: AVAudioSessionCategory.playback,
+              options: {
+                AVAudioSessionOptions.mixWithOthers,
+              },
+            ),
+          ),
+        );
+      } catch (e) {
+        debugPrint('[AudioService] _safePlay: setAudioContext failed: $e');
+      }
+      try {
+        await _player!.setPlayerMode(PlayerMode.mediaPlayer);
+      } catch (e) {
+        debugPrint('[AudioService] _safePlay: setPlayerMode failed: $e');
+      }
+      await _player!.setReleaseMode(ReleaseMode.loop);
       await _player!.setVolume(1.0);
       await _player!.setSource(AssetSource('audio/crossword_music.mp3'));
       await _player!.resume();
       debugPrint('[AudioService] _safePlay: started');
-
 
       await Future.delayed(const Duration(milliseconds: 200));
       final state = await _player!.state;
@@ -131,8 +213,25 @@ class AudioService with WidgetsBindingObserver {
         await _safePlay();
         return;
       }
-      await _player!.resume();
-      debugPrint('[AudioService] _safeResume: resumed');
+      PlayerState current;
+      try {
+        final state = _player!.state;
+        current = state is Future ? await state : state;
+      } catch (_) {
+        current = PlayerState.stopped;
+      }
+      debugPrint('[AudioService] _safeResume: currentState=$current');
+      if (current == PlayerState.stopped || current == PlayerState.completed) {
+        await _safePlay();
+        return;
+      }
+      try {
+        await _player!.resume();
+        debugPrint('[AudioService] _safeResume: resumed');
+      } catch (e) {
+        debugPrint('[AudioService] _safeResume: resume failed -> $e, falling back to _safePlay');
+        await _safePlay();
+      }
     } catch (_) {
       debugPrint('[AudioService] _safeResume failed, calling _safePlay');
       await _safePlay();
@@ -145,6 +244,70 @@ class AudioService with WidgetsBindingObserver {
       if (isMusicEnabled) {
         _safeResume();
       }
+    }
+  }
+
+  Future<void> playClick() async {
+    await _playAssetSfx('audio/ClickAudio.mp3');
+  }
+
+  Future<void> playIdea() async {
+    await _playAssetSfx('audio/ding-idea-.mp3');
+  }
+
+  Future<void> playMistake() async {
+    await _playAssetSfx('audio/MistakeSound.mp3');
+  }
+
+  Future<void> _playAssetSfx(String assetPath) async {
+    try {
+      await initialize();
+      if (!isSfxEnabled) return;
+
+      final player = AudioPlayer();
+      try {
+        await player.setAudioContext(
+          AudioContext(
+            android: AudioContextAndroid(
+              contentType: AndroidContentType.sonification,
+              usageType: AndroidUsageType.assistanceSonification,
+              // Do not grab audio focus so music keeps playing
+              audioFocus: AndroidAudioFocus.none,
+              isSpeakerphoneOn: true,
+              stayAwake: false,
+            ),
+            iOS: AudioContextIOS(
+              // Keep mixing so background keeps playing
+              category: AVAudioSessionCategory.playback,
+              options: {
+                AVAudioSessionOptions.mixWithOthers,
+              },
+            ),
+          ),
+        );
+      } catch (_) {}
+      try {
+        await player.setPlayerMode(PlayerMode.lowLatency);
+      } catch (_) {}
+      await player.setReleaseMode(ReleaseMode.stop);
+      await player.setVolume(1.0);
+      await player.setSource(AssetSource(assetPath));
+      await player.resume();
+
+      // Dispose when done
+      player.onPlayerComplete.first.then((_) async {
+        try {
+          await player.stop();
+        } catch (_) {}
+        try {
+          await player.release();
+        } catch (_) {}
+        try {
+          await player.dispose();
+        } catch (_) {}
+      });
+    } catch (e) {
+      debugPrint('[AudioService] _playAssetSfx failed for $assetPath: $e');
     }
   }
 }

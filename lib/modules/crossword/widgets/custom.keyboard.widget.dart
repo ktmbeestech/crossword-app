@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:crosswords/services/audio/audio.service.dart';
 
 /// The Custom Crossword Keyboard Widget.
 ///
@@ -85,7 +86,10 @@ class _KeyButton extends StatelessWidget {
     final foregroundColor = isSpecialKey ? Colors.white : Colors.white;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: () async {
+        await AudioService.instance.playClick();
+        onTap();
+      },
       child: Container(
         height: height,
         alignment: Alignment.center,

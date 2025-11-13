@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:crosswords/services/audio/audio.service.dart';
 
 Future<void> showDailyRewardsDialog(
   BuildContext context, {
@@ -124,7 +125,8 @@ class DailyRewardsDialog extends StatelessWidget {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
+                      await AudioService.instance.playClick();
                       if (alreadyClaimedToday) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -178,14 +180,24 @@ class DailyRewardsDialog extends StatelessWidget {
                 ],
                 border: Border.all(color: Colors.white, width: 2),
               ),
-              child: const Center(
-                child: Text(
-                  'Daily Rewards',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5,
-                    fontSize: 16,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Daily Rewards',
+                      maxLines: 1,
+                      overflow: TextOverflow.visible,
+                      softWrap: false,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
                 ),
               ),

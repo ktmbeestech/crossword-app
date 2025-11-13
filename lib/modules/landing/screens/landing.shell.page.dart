@@ -19,7 +19,10 @@ class CrosswordLandingPage extends StatefulWidget {
 }
 
 class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
-  void onToggleSound() {}
+  void onToggleSound() async {
+    await AudioService.instance.toggleSfx();
+    if (mounted) setState(() {});
+  }
   int _hintCount = 0;
 
   @override
@@ -58,61 +61,10 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
               Align(
                 alignment: Alignment.topCenter,
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 14),
+                  padding: const EdgeInsets.only(top: 14.0),
                   child: SizedBox(
-                    height: 120,
-                    width: 280,
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: Text(
-                            'CROSSWORDS',
-                            style: const TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: 79,
-                          top: 28,
-                          child: Image.asset(
-                            'assets/images/graduation_cap.png',
-                            height: 38,
-                          ),
-                        ),
-                        Positioned(
-                          left: 36,
-                          top: 72,
-                          child: Transform.rotate(
-                            angle: -0.25,
-                            child: Image.asset(
-                              'assets/images/only_sticker.png',
-                              height: 28,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: Column(
-                            children: [
-                              sboxH8,
-                              const Text(
-                                'for wordmasters',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    height: 180,
+                    child: Image.asset("assets/images/landing_title.png")
                   ),
                 ),
               ),
@@ -132,7 +84,7 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                                 onToggleSound: onToggleSound,
                                 isMusicMuted:
                                     !AudioService.instance.isMusicEnabled,
-                                isSoundMuted: false,
+                                isSoundMuted: !AudioService.instance.isSfxEnabled,
                               ),
                         );
                       },

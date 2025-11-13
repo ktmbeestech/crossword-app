@@ -1,10 +1,13 @@
-
 import 'package:flutter/material.dart';
+import 'package:crosswords/services/audio/audio.service.dart';
 
 Widget circleIcon(BuildContext context, {required AssetImage icon,required VoidCallback onTap}) {
   return InkWell(
     borderRadius: BorderRadius.circular(28),
-    onTap: onTap,
+    onTap: () async {
+      await AudioService.instance.playClick();
+      onTap();
+    },
     child: Container(
       width: 68,
       height: 68,

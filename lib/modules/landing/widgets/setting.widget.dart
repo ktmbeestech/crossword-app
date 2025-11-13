@@ -60,10 +60,18 @@ class SettingCrosswordWidget extends StatelessWidget {
                         );
                       },
                     ),
-                    circleIcon(
-                      context,
-                      icon: AssetImage(isSoundMuted ? "assets/images/sound_off_icon.png" : "assets/images/sound_on_icon.png"),
-                      onTap: onToggleSound,
+                    ValueListenableBuilder<bool>(
+                      valueListenable: AudioService.instance.sfxEnabledListenable,
+                      builder: (context, enabled, _) {
+                        final img = enabled
+                            ? const AssetImage("assets/images/sound_on_icon.png")
+                            : const AssetImage("assets/images/sound_off_icon.png");
+                        return circleIcon(
+                          context,
+                          icon: img,
+                          onTap: onToggleSound,
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -78,7 +86,8 @@ class SettingCrosswordWidget extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
+                      await AudioService.instance.playClick();
                       Navigator.of(context).maybePop();
                     },
                     child: const Text(

@@ -9,6 +9,7 @@ import 'package:crosswords/services/audio/audio.service.dart';
 import 'package:crosswords/modules/crossword/services/level.progress.service.dart';
 import 'package:crosswords/modules/landing/services/hint.service.dart';
 import 'package:crosswords/modules/landing/services/daily_reward.service.dart';
+import 'package:crosswords/services/analytics/analytics.service.dart';
 
 import '../models/crossword.data.model.dart';
 import '../services/crossword.grid.generator.dart';
@@ -128,6 +129,11 @@ class _CrosswordPageState extends State<CrosswordPage> {
       }
     });
 
+    // Analytics: reached level
+    try {
+      await AnalyticsService.instance.trackReachedLevel(level.id);
+    } catch (_) {}
+
     // Keep overlay briefly to feel responsive
     await Future.delayed(const Duration(milliseconds: 200));
     if (mounted) {
@@ -201,7 +207,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
                       Expanded(child: CurrentClueWidget(clue: activeClue)),
                       IconButton(
                         tooltip: 'Toggle Across/Down',
-                        onPressed: _toggleClueDirection,
+                        onPressed: () async {
+                          await AudioService.instance.playClick();
+                          _toggleClueDirection();
+                        },
                         icon: const Icon(Icons.swap_horiz, color: Colors.yellowAccent),
                       ),
                     ],
@@ -303,6 +312,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
         } else {
           
           _incorrectCells.add(idx);
+          // Play mistake sound on wrong input
+          AudioService.instance.playMistake();
         }
       }
     });
@@ -415,6 +426,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
           _hintsRemaining = (_hintsRemaining - 1).clamp(0, 1 << 30);
           _incorrectCells.remove(idx);
         });
+        // Play idea sound on successful hint use
+        AudioService.instance.playIdea();
         // persist consumption
         HintService.instance.consume(1).then((n) {
           if (mounted) {
@@ -491,7 +504,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
                                 padding: const EdgeInsets.only(bottom: 10),
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(8),
-                                  onTap: () {
+                                  onTap: () async {
+                                    await AudioService.instance.playClick();
                                     Navigator.pop(context);
                                     _setActiveClue(clue);
                                   },
@@ -543,6 +557,11 @@ class _CrosswordPageState extends State<CrosswordPage> {
     }
     _pauseTimer();
 
+    // Analytics: level completed
+    try {
+      AnalyticsService.instance.trackLevelCompleted(currentLevel.id, timeSeconds: _seconds, mistakes: _incorrectCells.length);
+    } catch (_) {}
+
     // Dismiss any open overlays (keyboard bottom sheet, clue dialog)
     if (_isInputSheetOpen) {
       Navigator.of(context).maybePop();
@@ -578,6 +597,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
           actions: [
             TextButton(
               onPressed: () async {
+                await AudioService.instance.playClick();
                 Navigator.pop(context);
                 // Save progress
                 await LevelProgressService.instance
@@ -625,11 +645,15 @@ class _CrosswordPageState extends State<CrosswordPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () async {
+                await AudioService.instance.playClick();
+                Navigator.of(context).pop();
+              },
               child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
+                await AudioService.instance.playClick();
                 Navigator.of(context).pop();
                 Navigator.pushReplacement(
                   context,
@@ -643,6 +667,11 @@ class _CrosswordPageState extends State<CrosswordPage> {
       );
       return;
     }
+
+    // Analytics: level skipped
+    try {
+      AnalyticsService.instance.trackLevelSkipped(currentLevel.id);
+    } catch (_) {}
 
     // Mark skipped and advance to next level, also update current index
     LevelProgressService.instance.markSkipped(currentLevel.id);
@@ -662,7 +691,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
     _resumeTimer();
   }
 
-  void onToggleSound() {}
+  void onToggleSound() async {
+    await AudioService.instance.toggleSfx();
+    if (mounted) setState(() {});
+  }
 
   void onToggleMusic() async {
     await AudioService.instance.toggleMusic();
@@ -709,7 +741,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      onPressed: _skipLevel,
+                      onPressed: () async {
+                        await AudioService.instance.playClick();
+                        _skipLevel();
+                      },
                       child: const Text(
                         'Skip Level',
                         style: TextStyle(fontWeight: FontWeight.bold),
@@ -752,7 +787,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      onPressed: _showCluesSheet,
+                      onPressed: () async {
+                        await AudioService.instance.playClick();
+                        _showCluesSheet();
+                      },
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -775,7 +813,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   InkWell(
-                    onTap: () {
+                    onTap: () async {
+                      await AudioService.instance.playClick();
                       _pauseTimer();
                       showDialog(
                         context: context,
@@ -786,7 +825,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
                               onToggleMusic: onToggleMusic,
                               onToggleSound: onToggleSound,
                               isMusicMuted: !AudioService.instance.isMusicEnabled,
-                              isSoundMuted: false,
+                              isSoundMuted: !AudioService.instance.isSfxEnabled,
                             ),
                       );
                     },
@@ -807,7 +846,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                             icon: Image.asset('assets/images/idea_hint.png'),
-                            onPressed: _useHint,
+                            onPressed: () async {
+                              await AudioService.instance.playClick();
+                              _useHint();
+                            },
                             tooltip: 'Use hint',
                           ),
                         ),
@@ -886,7 +928,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
                                           highlightedCellIndices.contains(index),
                                       isIncorrect: _incorrectCells.contains(index),
                                       cornerHint: showCorner ? correct : null,
-                                      onTap: () {
+                                      onTap: () async {
+                                        await AudioService.instance.playClick();
                                         _setSelectedCell(index, fromUserTap: true);
                                         _openInputSheet();
                                       },
