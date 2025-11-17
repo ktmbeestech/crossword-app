@@ -5,11 +5,13 @@ import 'package:crosswords/modules/landing/screens/landing.shell.page.dart';
 import 'level.select.screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'package:crosswords/services/audio/audio.service.dart';
 import 'package:crosswords/modules/crossword/services/level.progress.service.dart';
 import 'package:crosswords/modules/landing/services/hint.service.dart';
 import 'package:crosswords/modules/landing/services/daily_reward.service.dart';
 import 'package:crosswords/services/analytics/analytics.service.dart';
+import 'package:crosswords/services/local_storage/local_storage.services.dart';
 
 import '../models/crossword.data.model.dart';
 import '../services/crossword.grid.generator.dart';
@@ -35,6 +37,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
   final Map<int, String> _userInput = {}; // Stores user's letters
   final Set<int> _incorrectCells = {}; // Tracks cells with incorrect letters
   bool _isGenerating = false; // Show overlay while generating grid
+  final Set<int> _pulsingCells = {};
 
   // --- Level & Timer State ---
   int _levelIndex = 0;
@@ -43,6 +46,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
   bool _isPaused = false;
   Timer? _timer;
   bool _isInputSheetOpen = false;
+  int _autosaveTick = 0; // seconds since last autosave
 
   // --- Initialization ---
 
@@ -121,13 +125,16 @@ class _CrosswordPageState extends State<CrosswordPage> {
       _userInput.clear();
       _incorrectCells.clear();
       // do not reset hints here; they are global and persisted via HintService
-      _resetTimer();
 
       // Automatically select the first clue
       if (level.clues.isNotEmpty) {
         _setActiveClue(level.clues.first);
       }
     });
+
+    // Restore any saved progress for this level (time and letters)
+    await _restoreProgress(level.id);
+    _startTimer();
 
     // Analytics: reached level
     try {
@@ -178,6 +185,23 @@ class _CrosswordPageState extends State<CrosswordPage> {
       }
       _setSelectedCell(target);
     });
+
+    final cells = _cellsForClue(clue);
+    for (int i = 0; i < cells.length; i++) {
+      final idx = cells[i];
+      Future.delayed(Duration(milliseconds: 120 * i), () {
+        if (!mounted) return;
+        setState(() {
+          _pulsingCells.add(idx);
+        });
+        Future.delayed(const Duration(milliseconds: 320), () {
+          if (!mounted) return;
+          setState(() {
+            _pulsingCells.remove(idx);
+          });
+        });
+      });
+    }
   }
 
   Future<void> _openInputSheet() async {
@@ -187,6 +211,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
     });
     await showModalBottomSheet(
       context: context,
+      barrierColor: Colors.transparent,
       backgroundColor: const Color(0xFF1E1B45),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -291,6 +316,19 @@ class _CrosswordPageState extends State<CrosswordPage> {
         highlightedCellIndices = {};
       }
     });
+
+    // Briefly pulse the newly selected cell so it visibly enlarges
+    if (mounted) {
+      setState(() {
+        _pulsingCells.add(index);
+      });
+      Future.delayed(const Duration(milliseconds: 320), () {
+        if (!mounted) return;
+        setState(() {
+          _pulsingCells.remove(index);
+        });
+      });
+    }
   }
 
   /// Handles input from the keyboard widget.
@@ -317,6 +355,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
         }
       }
     });
+    _saveProgress();
     _checkForCompletion();
   }
 
@@ -338,6 +377,53 @@ class _CrosswordPageState extends State<CrosswordPage> {
       _setSelectedCell(prevCellIndex);
     }
     
+    _saveProgress();
+  }
+
+  // --- Persistence: save/load progress per level ---
+  Future<void> _saveProgress() async {
+    if (gridData == null) return;
+    final id = currentLevel.id;
+    final inputMap = <String, String>{};
+    _userInput.forEach((k, v) {
+      if ((v).isNotEmpty) inputMap[k.toString()] = v;
+    });
+    final payload = jsonEncode(inputMap);
+    await storageInstance.setData(key: 'cw_${id}_seconds', value: _seconds.toString());
+    await storageInstance.setData(key: 'cw_${id}_input', value: payload);
+  }
+
+  Future<void> _restoreProgress(String levelId) async {
+    final secStr = await storageInstance.getData(key: 'cw_${levelId}_seconds');
+    final inputStr = await storageInstance.getData(key: 'cw_${levelId}_input');
+    int restoredSec = int.tryParse(secStr ?? '') ?? 0;
+    Map<int, String> restoredInput = {};
+    if ((inputStr ?? '').isNotEmpty) {
+      try {
+        final decoded = jsonDecode(inputStr!) as Map<String, dynamic>;
+        decoded.forEach((k, v) {
+          final idx = int.tryParse(k);
+          if (idx != null && idx >= 0 && idx < (gridData!.grid.length)) {
+            final s = (v as String?) ?? '';
+            if (s.isNotEmpty) restoredInput[idx] = s;
+          }
+        });
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _seconds = restoredSec.clamp(0, 1 << 30);
+      _userInput.addAll(restoredInput);
+      // Recompute incorrect cells based on restored input
+      _incorrectCells.clear();
+      for (final e in _userInput.entries) {
+        final correct = (gridData!.grid[e.key].correctLetter ?? '').toUpperCase();
+        final current = (e.value).toUpperCase();
+        if (current.isNotEmpty && current != correct) {
+          _incorrectCells.add(e.key);
+        }
+      }
+    });
   }
 
   /// Logic to automatically advance the cursor to the next cell in the active clue.
@@ -383,7 +469,12 @@ class _CrosswordPageState extends State<CrosswordPage> {
       if (_isPaused) return;
       setState(() {
         _seconds += 1;
+        _autosaveTick += 1;
       });
+      if (_autosaveTick >= 5) {
+        _autosaveTick = 0;
+        _saveProgress();
+      }
     });
   }
 
@@ -444,6 +535,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
   void _showCluesSheet() {
     showDialog(
       context: context,
+      barrierColor: Colors.transparent,
       builder: (context) {
         return SafeArea(
           child: Material(
@@ -681,7 +773,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
   }
 
   void onHome() {
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => CrosswordLandingPage()),
     );
@@ -703,111 +795,129 @@ class _CrosswordPageState extends State<CrosswordPage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _saveProgress();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF050318),
-      body: SafeArea(
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(0, -0.2),
-              radius: 1.0,
-              colors: [Color(0xFF100D49), Color(0xFF050318)],
-            ),
+    return WillPopScope(
+      onWillPop: () async {
+        _pauseTimer();
+        showDialog(
+          context: context,
+          builder: (context) => PauseCrosswordWidget(
+            onHome: onHome,
+            onResume: onResume,
+            onToggleMusic: onToggleMusic,
+            onToggleSound: onToggleSound,
+            isMusicMuted: !AudioService.instance.isMusicEnabled,
+            isSoundMuted: !AudioService.instance.isSfxEnabled,
           ),
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // --- Header: Skip, Level, Timer, Clues ---
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0, top: 4.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Skip Level button
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFF253153),
-                        foregroundColor: Colors.yellow,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onPressed: () async {
-                        await AudioService.instance.playClick();
-                        _skipLevel();
-                      },
-                      child: const Text(
-                        'Skip Level',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    // Pause/Resume button
-
-                    // Level and Timer center
-                    Column(
-                      children: [
-                        Text(
-                          'Level ${_levelIndex + 1}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+        );
+        return false; // prevent popping the page
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF050318),
+        body: SafeArea(
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(0, -0.2),
+                radius: 1.0,
+                colors: [Color(0xFF100D49), Color(0xFF050318)],
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+            child: Column(
+              children: [
+                // --- Header: Skip, Level, Timer, Clues ---
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0, top: 4.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Skip Level button
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFF253153),
+                          foregroundColor: Colors.yellow,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatTime(_seconds),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Clues/Hints button with bulb and counter
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFF253153),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                        onPressed: () async {
+                          await AudioService.instance.playClick();
+                          _skipLevel();
+                        },
+                        child: const Text(
+                          'Skip Level',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
-                      onPressed: () async {
-                        await AudioService.instance.playClick();
-                        _showCluesSheet();
-                      },
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      // Pause/Resume button
+
+                      // Level and Timer center
+                      Column(
                         children: [
-                          const Text(
-                            'Clues',
-                            style: TextStyle(
-                              color: Colors.greenAccent,
+                          Text(
+                            'Level ${_levelIndex + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatTime(_seconds),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          sboxW8,
                         ],
                       ),
-                    ),
-                  ],
+
+                      // Clues/Hints button with bulb and counter
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFF253153),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () async {
+                          await AudioService.instance.playClick();
+                          _showCluesSheet();
+                        },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Clues',
+                              style: TextStyle(
+                                color: Colors.greenAccent,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            sboxW8,
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -900,8 +1010,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
                                   gridDelegate:
                                       SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: gridData!.cols,
-                                    crossAxisSpacing: 2,
-                                    mainAxisSpacing: 2,
+                                    crossAxisSpacing: 1,
+                                    mainAxisSpacing: 1,
                                   ),
                                   itemCount: gridData!.rows * gridData!.cols,
                                   itemBuilder: (context, index) {
@@ -928,6 +1038,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
                                           highlightedCellIndices.contains(index),
                                       isIncorrect: _incorrectCells.contains(index),
                                       cornerHint: showCorner ? correct : null,
+                                      isPulsing: _pulsingCells.contains(index),
                                       onTap: () async {
                                         await AudioService.instance.playClick();
                                         _setSelectedCell(index, fromUserTap: true);
@@ -982,7 +1093,9 @@ class _CrosswordPageState extends State<CrosswordPage> {
             ],
           ),
         ),
+        ),
       ),
     );
+
   }
 }

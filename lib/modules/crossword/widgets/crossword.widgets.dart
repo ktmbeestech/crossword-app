@@ -10,6 +10,7 @@ class CellWidget extends StatelessWidget {
   final bool isIncorrect;
   final VoidCallback onTap;
   final String? cornerHint; // e.g., intersection common letter
+  final bool isPulsing;
 
   const CellWidget({
     super.key,
@@ -20,12 +21,13 @@ class CellWidget extends StatelessWidget {
     this.isIncorrect = false,
     required this.onTap,
     this.cornerHint,
+    this.isPulsing = false,
   });
 
   @override
   Widget build(BuildContext context) {
     Color getBackgroundColor() {
-      // This logic defines the cell colors
+      
       if (isIncorrect) {
         return Colors.redAccent;
       }
@@ -45,7 +47,7 @@ class CellWidget extends StatelessWidget {
       onTap: onTap,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final cellSide = constraints.biggest.shortestSide;
+          final cellSide = constraints.biggest.longestSide;
           final letterSize = cellSide * 0.58; // scales with cell size
           final clueBadgeSize = cellSide * 0.24;
           final clueTop = cellSide * 0.06;
@@ -54,53 +56,58 @@ class CellWidget extends StatelessWidget {
           final hintTop = cellSide * 0.06;
           final hintRight = cellSide * 0.08;
 
-          return Container(
-            decoration: BoxDecoration(
-              color: getBackgroundColor(),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Stack(
-              children: [
-                // 1. Clue Number (scaled)
-                if (clueNumber != null)
-                  Positioned(
-                    top: clueTop,
-                    left: clueLeft,
+          return AnimatedScale(
+            scale: isPulsing ? 1.15 : 1.0,
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutBack,
+            child: Container(
+              decoration: BoxDecoration(
+                color: getBackgroundColor(),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Stack(
+                children: [
+                  // 1. Clue Number (scaled)
+                  if (clueNumber != null)
+                    Positioned(
+                      top: clueTop,
+                      left: clueLeft,
+                      child: Text(
+                        clueNumber.toString(),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontSize: clueBadgeSize.clamp(8.0, 14.0),
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
+                  if ((cornerHint ?? '').isNotEmpty)
+                    Positioned(
+                      top: hintTop,
+                      right: hintRight,
+                      child: Text(
+                        cornerHint!,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontSize: hintBadgeSize.clamp(8.0, 13.0),
+                          color: Colors.yellowAccent,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  // 2. User's Letter (scaled)
+                  Center(
                     child: Text(
-                      clueNumber.toString(),
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontSize: clueBadgeSize.clamp(8.0, 14.0),
-                            color: Colors.white70,
-                          ),
+                      letter,
+                      maxLines: 1,
+                      overflow: TextOverflow.visible,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: letterSize.clamp(14.0, 28.0),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                if ((cornerHint ?? '').isNotEmpty)
-                  Positioned(
-                    top: hintTop,
-                    right: hintRight,
-                    child: Text(
-                      cornerHint!,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontSize: hintBadgeSize.clamp(8.0, 13.0),
-                            color: Colors.yellowAccent,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ),
-                // 2. User's Letter (scaled)
-                Center(
-                  child: Text(
-                    letter,
-                    maxLines: 1,
-                    overflow: TextOverflow.visible,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: letterSize.clamp(14.0, 28.0),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
@@ -109,7 +116,8 @@ class CellWidget extends StatelessWidget {
   }
 }
 
-/// A widget to display the currently active clue.
+
+
 class CurrentClueWidget extends StatelessWidget {
   final Clue? clue;
 
@@ -120,9 +128,10 @@ class CurrentClueWidget extends StatelessWidget {
     final screenH = MediaQuery.of(context).size.height;
     final base = screenH < 680 ? 13.0 : (screenH < 760 ? 14.0 : 16.0);
 
-    final text = clue == null
-        ? 'Select a clue to begin.'
-        : '${clue!.number} ${clue!.direction.name}: ${clue!.clue}';
+    final text =
+        clue == null
+            ? 'Select a clue to begin.'
+            : '${clue!.number} ${clue!.direction.name}: ${clue!.clue}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),

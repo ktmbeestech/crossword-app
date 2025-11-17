@@ -3,6 +3,7 @@ import 'package:crosswords/modules/landing/widgets/glowing_animation.widget.dart
 import 'package:crosswords/modules/crossword/widgets/daily.rewards.dialog.dart';
 import 'package:crosswords/modules/landing/widgets/setting.widget.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:crosswords/modules/landing/services/hint.service.dart';
 import 'package:crosswords/modules/landing/services/daily_reward.service.dart';
 
@@ -23,6 +24,7 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
     await AudioService.instance.toggleSfx();
     if (mounted) setState(() {});
   }
+
   int _hintCount = 0;
 
   @override
@@ -45,199 +47,241 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0, -0.2),
-            radius: 1.0,
-            colors: [Color(0xFF100D49), Color(0xFF050318)],
+    return WillPopScope(
+      onWillPop: () async {
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (ctx) => AlertDialog(
+                title: const Text('Exit'),
+                content: const Text('Are you sure you want to exit?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: const Text('No'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    child: const Text('Yes'),
+                  ),
+                ],
+              ),
+        );
+        if (shouldExit == true) {
+          SystemNavigator.pop();
+        }
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0, -0.2),
+              radius: 1.0,
+              colors: [Color(0xFF100D49), Color(0xFF050318)],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              Align(
-                alignment: Alignment.topCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 14.0),
-                  child: SizedBox(
-                    height: 180,
-                    child: Image.asset("assets/images/landing_title.png")
+          child: SafeArea(
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 14.0),
+                    child: SizedBox(
+                      height: 180,
+                      child: Image.asset("assets/images/landing_title.png"),
+                    ),
                   ),
                 ),
-              ),
 
-              Positioned(
-                left: 18,
-                top: 170,
-                child: Column(
-                  children: [
-                    InkWell(
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder:
-                              (context) => SettingCrosswordWidget(
-                                onToggleMusic: onToggleMusic,
-                                onToggleSound: onToggleSound,
-                                isMusicMuted:
-                                    !AudioService.instance.isMusicEnabled,
-                                isSoundMuted: !AudioService.instance.isSfxEnabled,
-                              ),
-                        );
-                      },
-                      child: Image.asset(
-                        'assets/images/setting.png',
-                        height: 60,
-                      ),
-                    ),
-                    sboxH30,
-                    InkWell(
-                      onTap: (){
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const LevelSelectScreen()),
-                        );
-                      },
-                        child: Image.asset('assets/images/tasks.png', height: 60)
-                    ),
-                  ],
-                ),
-              ),
-
-              Positioned(
-                right: 18,
-                top: 170,
-                child: GestureDetector(
-                  onTap: () async {
-                    final svc = DailyRewardService();
-                    final streak = await svc.currentStreak();
-                    final alreadyClaimed = await svc.isClaimedToday();
-                    final base = streak % 7; // 0..6 index for current cycle
-                    final claimed = <int>{};
-                    if (alreadyClaimed) {
-                      for (var i = 0; i <= base; i++) {
-                        claimed.add(i);
-                      }
-                    } else {
-                      for (var i = 0; i < base; i++) {
-                        claimed.add(i);
-                      }
-                    }
-                    await showDailyRewardsDialog(
-                      context,
-                      currentDayIndex: base,
-                      claimedDays: claimed,
-                      onClaim: () async {
-                        final n = await svc.claimDailyAndGrantHints();
-                        if (n != null && mounted) setState(() => _hintCount = n);
-                        Navigator.of(context).pop();
-                      },
-                    );
-                  },
-                  child: Stack(
-                    clipBehavior: Clip.none,
+                Positioned(
+                  left: 18,
+                  top: 170,
+                  child: Column(
                     children: [
-                      Image.asset('assets/images/idea_hint.png', height: 60),
-                      Positioned(
-                        right: -6,
-                        top: -6,
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE53935),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            '$_hintCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                      InkWell(
+                        onTap: () async{
+                          await AudioService.instance.playClick();
+                          showDialog(
+                            context: context,
+                            builder:
+                                (context) => SettingCrosswordWidget(
+                                  onToggleMusic: onToggleMusic,
+                                  onToggleSound: onToggleSound,
+                                  isMusicMuted:
+                                      !AudioService.instance.isMusicEnabled,
+                                  isSoundMuted:
+                                      !AudioService.instance.isSfxEnabled,
+                                ),
+                          );
+                        },
+                        child: Image.asset(
+                          'assets/images/setting.png',
+                          height: 60,
+                        ),
+                      ),
+                      sboxH30,
+                      InkWell(
+                        onTap: () async{
+                          await AudioService.instance.playClick();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const LevelSelectScreen(),
                             ),
-                          ),
+                          );
+                        },
+                        child: Image.asset(
+                          'assets/images/tasks.png',
+                          height: 60,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
 
-              Align(
-                alignment: const Alignment(0, -0.05),
-                child: SizedBox(
-                  height: 200,
-                  width: 170,
-                  child: GlowingWordWidgets(width: 140, height: 240),
-                ),
-              ),
-
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 92),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF253153),
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      minimumSize: const Size(280, 56),
-                    ),
-                    onPressed: () async {
-                      final index = await LevelProgressService.instance.nextPlayableIndex();
-                      if (!mounted) return;
-                      Navigator.push(
+                Positioned(
+                  right: 18,
+                  top: 170,
+                  child: GestureDetector(
+                    onTap: () async {
+                      await AudioService.instance.playClick();
+                      final svc = DailyRewardService();
+                      final streak = await svc.currentStreak();
+                      final alreadyClaimed = await svc.isClaimedToday();
+                      final base = streak % 7; // 0..6 index for current cycle
+                      final claimed = <int>{};
+                      if (alreadyClaimed) {
+                        for (var i = 0; i <= base; i++) {
+                          claimed.add(i);
+                        }
+                      } else {
+                        for (var i = 0; i < base; i++) {
+                          claimed.add(i);
+                        }
+                      }
+                      await showDailyRewardsDialog(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => CrosswordPage(startLevelIndex: index),
-                        ),
+                        currentDayIndex: base,
+                        claimedDays: claimed,
+                        onClaim: () async {
+                          final n = await svc.claimDailyAndGrantHints();
+                          if (n != null && mounted)
+                            setState(() => _hintCount = n);
+                          Navigator.of(context).pop();
+                        },
                       );
                     },
-                    child: SizedBox(
-                      width: 280,
-                      height: 56,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Positioned(
-                            left: 16,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.yellow[700],
-                                borderRadius: BorderRadius.circular(6),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Image.asset('assets/images/idea_hint.png', height: 60),
+                        Positioned(
+                          right: -6,
+                          top: -6,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFE53935),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$_hintCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              child: const Text(
-                                'A',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                  fontSize: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                Align(
+                  alignment: const Alignment(0, -0.05),
+                  child: SizedBox(
+                    height: 200,
+                    width: 170,
+                    child: GlowingWordWidgets(width: 140, height: 240),
+                  ),
+                ),
+
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 92),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF253153),
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        minimumSize: const Size(280, 56),
+                      ),
+                      onPressed: () async {
+                        await AudioService.instance.playClick();
+                        final index =
+                            await LevelProgressService.instance
+                                .nextPlayableIndex();
+                        if (!mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) =>
+                                    CrosswordPage(startLevelIndex: index),
+                          ),
+                        );
+                      },
+                      child: SizedBox(
+                        width: 280,
+                        height: 56,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Positioned(
+                              left: 16,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.yellow[700],
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                child: const Text(
+                                  'A',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                    fontSize: 18,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const Text(
-                            'Play',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                            const Text(
+                              'Play',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

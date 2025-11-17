@@ -78,7 +78,29 @@ class AudioService with WidgetsBindingObserver {
       await _player!.setReleaseMode(ReleaseMode.loop);
       try {
         _sfxPlayer ??= AudioPlayer();
-        await _sfxPlayer!.setPlayerMode(PlayerMode.lowLatency);
+        try {
+          await _sfxPlayer!.setAudioContext(
+            AudioContext(
+              android: AudioContextAndroid(
+                // Route SFX through MEDIA stream so device notification settings don't mute it
+                contentType: AndroidContentType.music,
+                usageType: AndroidUsageType.media,
+                audioFocus: AndroidAudioFocus.none,
+                isSpeakerphoneOn: true,
+                stayAwake: false,
+              ),
+              iOS: AudioContextIOS(
+                category: AVAudioSessionCategory.playback,
+                options: {
+                  AVAudioSessionOptions.mixWithOthers,
+                },
+              ),
+            ),
+          );
+        } catch (e) {
+          debugPrint('[AudioService] sfx setAudioContext failed: $e');
+        }
+        await _sfxPlayer!.setPlayerMode(PlayerMode.mediaPlayer);
         await _sfxPlayer!.setReleaseMode(ReleaseMode.stop);
         await _sfxPlayer!.setVolume(1.0);
       } catch (e) {
@@ -262,48 +284,69 @@ class AudioService with WidgetsBindingObserver {
   Future<void> _playAssetSfx(String assetPath) async {
     try {
       await initialize();
-      if (!isSfxEnabled) return;
+      if (!isSfxEnabled) {
+        debugPrint('[AudioService] SFX disabled, skipping: $assetPath');
+        return;
+      }
 
-      final player = AudioPlayer();
-      try {
-        await player.setAudioContext(
-          AudioContext(
-            android: AudioContextAndroid(
-              contentType: AndroidContentType.sonification,
-              usageType: AndroidUsageType.assistanceSonification,
-              // Do not grab audio focus so music keeps playing
-              audioFocus: AndroidAudioFocus.none,
-              isSpeakerphoneOn: true,
-              stayAwake: false,
-            ),
-            iOS: AudioContextIOS(
-              // Keep mixing so background keeps playing
-              category: AVAudioSessionCategory.playback,
-              options: {
-                AVAudioSessionOptions.mixWithOthers,
-              },
-            ),
-          ),
-        );
-      } catch (_) {}
-      try {
-        await player.setPlayerMode(PlayerMode.lowLatency);
-      } catch (_) {}
-      await player.setReleaseMode(ReleaseMode.stop);
-      await player.setVolume(1.0);
-      await player.setSource(AssetSource(assetPath));
-      await player.resume();
+      if (_sfxPlayer == null) {
+        debugPrint('[AudioService] _playAssetSfx: sfxPlayer was null, reinitializing');
+        await initialize();
+      }
+      if (_sfxPlayer == null) return;
 
-      // Dispose when done
-      player.onPlayerComplete.first.then((_) async {
+      // Duck background music slightly while SFX plays so it is clearly audible
+      double previousMusicVol = 1.0;
+      try {
+        if (_player != null && isMusicEnabled) {
+          previousMusicVol = 1.0; // we always set to 1.0 when starting music
+          await _player!.setVolume(0.25);
+        }
+      } catch (_) {}
+
+      try {
+        await _sfxPlayer!.setVolume(1.0);
+        await _sfxPlayer!.play(AssetSource(assetPath));
+        debugPrint('[AudioService] SFX playing: $assetPath');
+      } catch (e) {
+        debugPrint('[AudioService] _playAssetSfx play failed for $assetPath (shared): $e');
+        // Fallback: try with a fresh ephemeral player
         try {
-          await player.stop();
-        } catch (_) {}
+          final temp = AudioPlayer();
+          await temp.setAudioContext(
+            AudioContext(
+              android: AudioContextAndroid(
+                contentType: AndroidContentType.music,
+                usageType: AndroidUsageType.media,
+                audioFocus: AndroidAudioFocus.none,
+                isSpeakerphoneOn: true,
+                stayAwake: false,
+              ),
+              iOS: AudioContextIOS(
+                category: AVAudioSessionCategory.playback,
+                options: { AVAudioSessionOptions.mixWithOthers },
+              ),
+            ),
+          );
+          await temp.setPlayerMode(PlayerMode.mediaPlayer);
+          await temp.setReleaseMode(ReleaseMode.stop);
+          await temp.setVolume(1.0);
+          await temp.play(AssetSource(assetPath));
+          temp.onPlayerComplete.first.then((_) async {
+            try { await temp.dispose(); } catch (_) {}
+          });
+          debugPrint('[AudioService] SFX playing via fallback: $assetPath');
+        } catch (e2) {
+          debugPrint('[AudioService] _playAssetSfx fallback failed for $assetPath: $e2');
+        }
+      }
+
+      // Restore music volume after a short delay
+      Future.delayed(const Duration(milliseconds: 900), () async {
         try {
-          await player.release();
-        } catch (_) {}
-        try {
-          await player.dispose();
+          if (_player != null && isMusicEnabled) {
+            await _player!.setVolume(previousMusicVol);
+          }
         } catch (_) {}
       });
     } catch (e) {
