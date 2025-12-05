@@ -205,57 +205,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
   }
 
   Future<void> _openInputSheet() async {
-    if (_isInputSheetOpen) return;
-    setState(() {
-      _isInputSheetOpen = true;
-    });
-    await showModalBottomSheet(
-      context: context,
-      barrierColor: Colors.transparent,
-      backgroundColor: const Color(0xFF1E1B45),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      isScrollControlled: true,
-      builder: (context) {
-        return FractionallySizedBox(
-          heightFactor: 0.35,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(child: CurrentClueWidget(clue: activeClue)),
-                      IconButton(
-                        tooltip: 'Toggle Across/Down',
-                        onPressed: () async {
-                          await AudioService.instance.playClick();
-                          _toggleClueDirection();
-                        },
-                        icon: const Icon(Icons.swap_horiz, color: Colors.yellowAccent),
-                      ),
-                    ],
-                  ),
-                  sboxH6,
-                  Flexible(
-                    child: CustomKeyboard(onKeyPress: _handleKeyPress),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-    if (mounted) {
-      setState(() {
-        _isInputSheetOpen = false;
-      });
-    }
+    // Removed
   }
 
   // Returns the ordered list of cell indices for a clue from start to end.
@@ -449,15 +399,6 @@ class _CrosswordPageState extends State<CrosswordPage> {
     } else {
       
       print('Word ${activeClue!.answer} is complete.');
-      if (_isInputSheetOpen) {
-        // Close the keyboard/input sheet when a word completes
-        Navigator.of(context).maybePop();
-        if (mounted) {
-          setState(() {
-            _isInputSheetOpen = false;
-          });
-        }
-      }
     }
   }
 
@@ -655,10 +596,6 @@ class _CrosswordPageState extends State<CrosswordPage> {
     } catch (_) {}
 
     // Dismiss any open overlays (keyboard bottom sheet, clue dialog)
-    if (_isInputSheetOpen) {
-      Navigator.of(context).maybePop();
-      if (mounted) setState(() => _isInputSheetOpen = false);
-    }
     // Pop any remaining dialogs to ensure a clean completion dialog
     Navigator.of(context).popUntil((route) => route is PageRoute);
     showDialog(
@@ -806,14 +743,15 @@ class _CrosswordPageState extends State<CrosswordPage> {
         _pauseTimer();
         showDialog(
           context: context,
-          builder: (context) => PauseCrosswordWidget(
-            onHome: onHome,
-            onResume: onResume,
-            onToggleMusic: onToggleMusic,
-            onToggleSound: onToggleSound,
-            isMusicMuted: !AudioService.instance.isMusicEnabled,
-            isSoundMuted: !AudioService.instance.isSfxEnabled,
-          ),
+          builder:
+              (context) => PauseCrosswordWidget(
+                onHome: onHome,
+                onResume: onResume,
+                onToggleMusic: onToggleMusic,
+                onToggleSound: onToggleSound,
+                isMusicMuted: !AudioService.instance.isMusicEnabled,
+                isSoundMuted: !AudioService.instance.isSfxEnabled,
+              ),
         );
         return false; // prevent popping the page
       },
@@ -994,60 +932,53 @@ class _CrosswordPageState extends State<CrosswordPage> {
                 child: Stack(
                   children: [
                     Center(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          bottom: _isInputSheetOpen
-                              ? (MediaQuery.of(context).size.height * 0.36)
-                              : 0,
-                        ),
-                        child: AspectRatio(
-                          aspectRatio: 1.0,
-                          child: gridData == null
-                              ? const Center(
-                                  child: CircularProgressIndicator(),
-                                )
-                              : GridView.builder(
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: gridData!.cols,
-                                    crossAxisSpacing: 1,
-                                    mainAxisSpacing: 1,
-                                  ),
-                                  itemCount: gridData!.rows * gridData!.cols,
-                                  itemBuilder: (context, index) {
-                                    final cellData = gridData!.grid[index];
-
-                                    if (cellData.isBlocked) {
-                                      return Container(color: Colors.transparent);
-                                    }
-
-                                    final correct =
-                                        (cellData.correctLetter ?? '').toUpperCase();
-                                    final current =
-                                        (_userInput[index] ?? '').toUpperCase();
-                                    final showCorner =
-                                        ((cellData.clueIds.length >= 2) ||
-                                                (cellData.clueNumber != null)) &&
-                                            current != correct;
-
-                                    return CellWidget(
-                                      letter: _userInput[index] ?? '',
-                                      clueNumber: cellData.clueNumber,
-                                      isSelected: index == selectedCellIndex,
-                                      isHighlighted:
-                                          highlightedCellIndices.contains(index),
-                                      isIncorrect: _incorrectCells.contains(index),
-                                      cornerHint: showCorner ? correct : null,
-                                      isPulsing: _pulsingCells.contains(index),
-                                      onTap: () async {
-                                        await AudioService.instance.playClick();
-                                        _setSelectedCell(index, fromUserTap: true);
-                                        _openInputSheet();
-                                      },
-                                    );
-                                  },
+                      child: AspectRatio(
+                        aspectRatio: 1.0,
+                        child: gridData == null
+                            ? const Center(
+                                child: CircularProgressIndicator(),
+                              )
+                            : GridView.builder(
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: gridData!.cols,
+                                  crossAxisSpacing: 4,
+                                  mainAxisSpacing: 4,
                                 ),
-                        ),
+                                itemCount: gridData!.rows * gridData!.cols,
+                                itemBuilder: (context, index) {
+                                  final cellData = gridData!.grid[index];
+
+                                  if (cellData.isBlocked) {
+                                    return Container(color: Colors.transparent);
+                                  }
+
+                                  final correct =
+                                      (cellData.correctLetter ?? '').toUpperCase();
+                                  final current =
+                                      (_userInput[index] ?? '').toUpperCase();
+                                  final showCorner =
+                                      ((cellData.clueIds.length >= 2) ||
+                                              (cellData.clueNumber != null)) &&
+                                          current != correct;
+
+                                  return CellWidget(
+                                    letter: _userInput[index] ?? '',
+                                    clueNumber: cellData.clueNumber,
+                                    isSelected: index == selectedCellIndex,
+                                    isHighlighted:
+                                        highlightedCellIndices.contains(index),
+                                    isIncorrect: _incorrectCells.contains(index),
+                                    cornerHint: showCorner ? correct : null,
+                                    isPulsing: _pulsingCells.contains(index),
+                                    onTap: () async {
+                                      await AudioService.instance.playClick();
+                                      _setSelectedCell(index, fromUserTap: true);
+                                    },
+                                  );
+                                },
+                              ),
                       ),
                     ),
 
@@ -1090,12 +1021,38 @@ class _CrosswordPageState extends State<CrosswordPage> {
                   ],
                 ),
               ),
+              // --- 2. Fixed Current Clue + Keyboard at Bottom ---
+              SizedBox(
+                height: MediaQuery.of(context).size.height * 0.32,
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: CurrentClueWidget(clue: activeClue)),
+                        IconButton(
+                          tooltip: 'Toggle Across/Down',
+                          onPressed: () async {
+                            await AudioService.instance.playClick();
+                            _toggleClueDirection();
+                          },
+                          icon: const Icon(
+                            Icons.swap_horiz,
+                            color: Colors.yellowAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Expanded(
+                      child: CustomKeyboard(onKeyPress: _handleKeyPress),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
-        ),
       ),
+      )
     );
-
   }
 }
