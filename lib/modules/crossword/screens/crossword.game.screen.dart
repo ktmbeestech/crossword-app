@@ -82,8 +82,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
       orElse: () => activeClue!.id,
     );
     if (otherId != activeClue!.id) {
-      final newClue = currentLevel.clues.firstWhere((c) => c.id == otherId,
-          orElse: () => activeClue!);
+      final newClue = currentLevel.clues.firstWhere(
+        (c) => c.id == otherId,
+        orElse: () => activeClue!,
+      );
       if (newClue.id != activeClue!.id) {
         _setActiveClue(newClue);
         // If input sheet is open, refresh it so header reflects new clue
@@ -226,7 +228,6 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
   void _setSelectedCell(int index, {bool fromUserTap = false}) {
     setState(() {
-      
       if (selectedCellIndex == index) {
         return;
       }
@@ -236,13 +237,11 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
       // Logic to set/change the active clue when a cell is tapped
       if (cell.clueIds.isNotEmpty) {
-        
         String targetClueId = activeClue?.id ?? '';
         if (fromUserTap &&
             activeClue != null &&
             cell.clueIds.length > 1 &&
             cell.clueIds.contains(activeClue!.id)) {
-         
           targetClueId = cell.clueIds.firstWhere(
             (id) => id != activeClue!.id,
             orElse: () => activeClue!.id,
@@ -261,7 +260,6 @@ class _CrosswordPageState extends State<CrosswordPage> {
           }
         }
       } else {
-        
         activeClue = null;
         highlightedCellIndices = {};
       }
@@ -289,7 +287,6 @@ class _CrosswordPageState extends State<CrosswordPage> {
       if (key == 'DEL') {
         _handleDelete();
       } else {
-        
         final idx = selectedCellIndex!;
         final expected = gridData!.grid[idx].correctLetter?.toUpperCase();
         final value = key.toUpperCase();
@@ -298,7 +295,6 @@ class _CrosswordPageState extends State<CrosswordPage> {
           _incorrectCells.remove(idx);
           _autoAdvanceCursor();
         } else {
-          
           _incorrectCells.add(idx);
           // Play mistake sound on wrong input
           AudioService.instance.playMistake();
@@ -313,20 +309,19 @@ class _CrosswordPageState extends State<CrosswordPage> {
   void _handleDelete() {
     if (selectedCellIndex == null) return;
 
-  
     _userInput.remove(selectedCellIndex);
     _incorrectCells.remove(selectedCellIndex);
 
-    final clueCells = activeClue == null ? const <int>[] : _cellsForClue(activeClue!);
+    final clueCells =
+        activeClue == null ? const <int>[] : _cellsForClue(activeClue!);
     final currentIndexInClue = clueCells.indexOf(selectedCellIndex!);
 
-   
     if (currentIndexInClue > 0) {
       final prevCellIndex = clueCells[currentIndexInClue - 1];
-      
+
       _setSelectedCell(prevCellIndex);
     }
-    
+
     _saveProgress();
   }
 
@@ -339,7 +334,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
       if ((v).isNotEmpty) inputMap[k.toString()] = v;
     });
     final payload = jsonEncode(inputMap);
-    await storageInstance.setData(key: 'cw_${id}_seconds', value: _seconds.toString());
+    await storageInstance.setData(
+      key: 'cw_${id}_seconds',
+      value: _seconds.toString(),
+    );
     await storageInstance.setData(key: 'cw_${id}_input', value: payload);
   }
 
@@ -367,7 +365,8 @@ class _CrosswordPageState extends State<CrosswordPage> {
       // Recompute incorrect cells based on restored input
       _incorrectCells.clear();
       for (final e in _userInput.entries) {
-        final correct = (gridData!.grid[e.key].correctLetter ?? '').toUpperCase();
+        final correct =
+            (gridData!.grid[e.key].correctLetter ?? '').toUpperCase();
         final current = (e.value).toUpperCase();
         if (current.isNotEmpty && current != correct) {
           _incorrectCells.add(e.key);
@@ -397,7 +396,6 @@ class _CrosswordPageState extends State<CrosswordPage> {
     if (nextIdx != null) {
       _setSelectedCell(nextIdx, fromUserTap: false);
     } else {
-      
       print('Word ${activeClue!.answer} is complete.');
     }
   }
@@ -483,9 +481,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
             color: Colors.transparent,
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 420,
-                ),
+                constraints: const BoxConstraints(maxWidth: 420),
                 child: Container(
                   margin: const EdgeInsets.all(16),
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -505,69 +501,104 @@ class _CrosswordPageState extends State<CrosswordPage> {
                     ],
                     border: Border.all(color: Colors.white24, width: 1),
                   ),
-                  child: Builder(
-                    builder: (context) {
-                      final across = currentLevel.clues
-                          .where((c) => c.direction == Direction.across)
-                          .toList();
-                      final down = currentLevel.clues
-                          .where((c) => c.direction == Direction.down)
-                          .toList();
+                  child: Stack(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 0),
+                        child: Builder(
+                          builder: (context) {
+                            final across =
+                                currentLevel.clues
+                                    .where(
+                                      (c) => c.direction == Direction.across,
+                                    )
+                                    .toList();
+                            final down =
+                                currentLevel.clues
+                                    .where((c) => c.direction == Direction.down)
+                                    .toList();
 
-                      TextStyle headerStyle = const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
-                      );
-                      TextStyle clueStyle = const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        height: 1.35,
-                        fontWeight: FontWeight.w600,
-                      );
+                            TextStyle headerStyle = const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            );
+                            TextStyle clueStyle = const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              height: 1.35,
+                              fontWeight: FontWeight.w600,
+                            );
 
-                      Widget buildSection(String title, List<Clue> items) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(title, style: headerStyle),
-                            const SizedBox(height: 8),
-                            ...items.map((clue) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(8),
-                                  onTap: () async {
-                                    await AudioService.instance.playClick();
-                                    Navigator.pop(context);
-                                    _setActiveClue(clue);
-                                  },
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 4, horizontal: 4),
-                                    child: Text(
-                                      '${clue.number}. ${clue.clue}',
-                                      style: clueStyle,
-                                    ),
-                                  ),
-                                ),
+                            Widget buildSection(
+                              String title,
+                              List<Clue> items,
+                            ) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(title, style: headerStyle),
+                                  const SizedBox(height: 8),
+                                  ...items.map((clue) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 10,
+                                      ),
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(8),
+                                        onTap: () async {
+                                          await AudioService.instance
+                                              .playClick();
+                                          Navigator.pop(context);
+                                          _setActiveClue(clue);
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 4,
+                                            horizontal: 4,
+                                          ),
+                                          child: Text(
+                                            '${clue.number}. ${clue.clue}',
+                                            style: clueStyle,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ],
                               );
-                            }).toList(),
-                          ],
-                        );
-                      }
+                            }
 
-                      return SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            buildSection('Across', across),
-                            const SizedBox(height: 14),
-                            buildSection('Down', down),
-                          ],
+                            return SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  buildSection('Across', across),
+                                  const SizedBox(height: 14),
+                                  buildSection('Down', down),
+                                ],
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ),
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                          onPressed: () async {
+                            await AudioService.instance
+                                .playClick(); // Optional sound
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -592,7 +623,11 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
     // Analytics: level completed
     try {
-      AnalyticsService.instance.trackLevelCompleted(currentLevel.id, timeSeconds: _seconds, mistakes: _incorrectCells.length);
+      AnalyticsService.instance.trackLevelCompleted(
+        currentLevel.id,
+        timeSeconds: _seconds,
+        mistakes: _incorrectCells.length,
+      );
     } catch (_) {}
 
     // Dismiss any open overlays (keyboard bottom sheet, clue dialog)
@@ -619,7 +654,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
               const SizedBox(height: 8),
               const Text(
                 'Reward: 5 hints',
-                style: TextStyle(color: Colors.yellowAccent, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.yellowAccent,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -629,8 +667,9 @@ class _CrosswordPageState extends State<CrosswordPage> {
                 await AudioService.instance.playClick();
                 Navigator.pop(context);
                 // Save progress
-                await LevelProgressService.instance
-                    .markCompleted(currentLevel.id);
+                await LevelProgressService.instance.markCompleted(
+                  currentLevel.id,
+                );
                 // Grant one-time completion bonus (5 hints)
                 final bonus = await DailyRewardService()
                     .grantLevelCompletionBonus(currentLevel.id, amount: 5);
@@ -638,7 +677,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
                   setState(() => _hintsRemaining = bonus);
                 }
                 // Move current index forward if we just finished the current gate
-                final nextIndex = (_levelIndex + 1).clamp(0, allLevels.length - 1);
+                final nextIndex = (_levelIndex + 1).clamp(
+                  0,
+                  allLevels.length - 1,
+                );
                 await LevelProgressService.instance.setCurrentIndex(nextIndex);
                 _nextLevel();
               },
@@ -652,9 +694,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
   void _nextLevel() {
     setState(() {
-      _levelIndex = (
-        _levelIndex + 1
-      ) % allLevels.length;
+      _levelIndex = (_levelIndex + 1) % allLevels.length;
     });
     _loadLevel(allLevels[_levelIndex]);
     _resumeTimer();
@@ -665,34 +705,46 @@ class _CrosswordPageState extends State<CrosswordPage> {
     if (_levelIndex >= allLevels.length - 1) {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF253153),
-          title: const Text('End of Levels', style: TextStyle(color: Colors.white)),
-          content: const Text(
-            'You\'ve reached the end of available levels. Go to the Level Select page?',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await AudioService.instance.playClick();
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+        builder:
+            (context) => AlertDialog(
+              backgroundColor: const Color(0xFF253153),
+              title: const Text(
+                'End of Levels',
+                style: TextStyle(color: Colors.white),
+              ),
+              content: const Text(
+                'You\'ve reached the end of available levels. Go to the Level Select page?',
+                style: TextStyle(color: Colors.white70),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    await AudioService.instance.playClick();
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    await AudioService.instance.playClick();
+                    Navigator.of(context).pop();
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LevelSelectScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    'Go to Levels',
+                    style: TextStyle(color: Colors.yellow),
+                  ),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () async {
-                await AudioService.instance.playClick();
-                Navigator.of(context).pop();
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LevelSelectScreen()),
-                );
-              },
-              child: const Text('Go to Levels', style: TextStyle(color: Colors.yellow)),
-            ),
-          ],
-        ),
       );
       return;
     }
@@ -704,8 +756,9 @@ class _CrosswordPageState extends State<CrosswordPage> {
 
     // Mark skipped and advance to next level, also update current index
     LevelProgressService.instance.markSkipped(currentLevel.id);
-    LevelProgressService.instance
-        .setCurrentIndex((_levelIndex + 1).clamp(0, allLevels.length - 1));
+    LevelProgressService.instance.setCurrentIndex(
+      (_levelIndex + 1).clamp(0, allLevels.length - 1),
+    );
     _nextLevel();
   }
 
@@ -729,6 +782,7 @@ class _CrosswordPageState extends State<CrosswordPage> {
     await AudioService.instance.toggleMusic();
     if (mounted) setState(() {});
   }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -766,7 +820,10 @@ class _CrosswordPageState extends State<CrosswordPage> {
                 colors: [Color(0xFF100D49), Color(0xFF050318)],
               ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12.0,
+              vertical: 10.0,
+            ),
             child: Column(
               children: [
                 // --- Header: Skip, Level, Timer, Clues ---
@@ -855,204 +912,219 @@ class _CrosswordPageState extends State<CrosswordPage> {
                     ],
                   ),
                 ),
-                
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  InkWell(
-                    onTap: () async {
-                      await AudioService.instance.playClick();
-                      _pauseTimer();
-                      showDialog(
-                        context: context,
-                        builder:
-                            (context) => PauseCrosswordWidget(
-                              onHome: onHome,
-                              onResume: onResume,
-                              onToggleMusic: onToggleMusic,
-                              onToggleSound: onToggleSound,
-                              isMusicMuted: !AudioService.instance.isMusicEnabled,
-                              isSoundMuted: !AudioService.instance.isSfxEnabled,
-                            ),
-                      );
-                    },
-                    child: Image.asset(
-                      'assets/images/pause_button.png',
-                      height: 48,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    InkWell(
+                      onTap: () async {
+                        await AudioService.instance.playClick();
+                        _pauseTimer();
+                        showDialog(
+                          context: context,
+                          builder:
+                              (context) => PauseCrosswordWidget(
+                                onHome: onHome,
+                                onResume: onResume,
+                                onToggleMusic: onToggleMusic,
+                                onToggleSound: onToggleSound,
+                                isMusicMuted:
+                                    !AudioService.instance.isMusicEnabled,
+                                isSoundMuted:
+                                    !AudioService.instance.isSfxEnabled,
+                              ),
+                        );
+                      },
+                      child: Image.asset(
+                        'assets/images/pause_button.png',
+                        height: 48,
+                      ),
                     ),
-                  ),
 
-                  SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Positioned.fill(
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            icon: Image.asset('assets/images/idea_hint.png'),
-                            onPressed: () async {
-                              await AudioService.instance.playClick();
-                              _useHint();
-                            },
-                            tooltip: 'Use hint',
-                          ),
-                        ),
-                        Positioned(
-                          right: -6,
-                          top: -6,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE53935),
-                              shape: BoxShape.circle,
+                    SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned.fill(
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: Image.asset('assets/images/idea_hint.png'),
+                              onPressed: () async {
+                                await AudioService.instance.playClick();
+                                _useHint();
+                              },
+                              tooltip: 'Use hint',
                             ),
-                            child: Text(
-                              '$_hintsRemaining',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
+                          ),
+                          Positioned(
+                            right: -6,
+                            top: -6,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFE53935),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '$_hintsRemaining',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              sboxH8,
+                  ],
+                ),
+                sboxH8,
 
-              // --- 1. The Crossword Grid (expanded) ---
-              Expanded(
-                child: Stack(
-                  children: [
-                    Center(
-                      child: AspectRatio(
-                        aspectRatio: 1.0,
-                        child: gridData == null
-                            ? const Center(
-                                child: CircularProgressIndicator(),
-                              )
-                            : GridView.builder(
-                                physics: const NeverScrollableScrollPhysics(),
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: gridData!.cols,
-                                  crossAxisSpacing: 4,
-                                  mainAxisSpacing: 4,
-                                ),
-                                itemCount: gridData!.rows * gridData!.cols,
-                                itemBuilder: (context, index) {
-                                  final cellData = gridData!.grid[index];
+                // --- 1. The Crossword Grid (expanded) ---
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Center(
+                        child: AspectRatio(
+                          aspectRatio: 1.0,
+                          child:
+                              gridData == null
+                                  ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                  : GridView.builder(
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    gridDelegate:
+                                        SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: gridData!.cols,
+                                          crossAxisSpacing: 4,
+                                          mainAxisSpacing: 4,
+                                        ),
+                                    itemCount: gridData!.rows * gridData!.cols,
+                                    itemBuilder: (context, index) {
+                                      final cellData = gridData!.grid[index];
 
-                                  if (cellData.isBlocked) {
-                                    return Container(color: Colors.transparent);
-                                  }
+                                      if (cellData.isBlocked) {
+                                        return Container(
+                                          color: Colors.transparent,
+                                        );
+                                      }
 
-                                  final correct =
-                                      (cellData.correctLetter ?? '').toUpperCase();
-                                  final current =
-                                      (_userInput[index] ?? '').toUpperCase();
-                                  final showCorner =
-                                      ((cellData.clueIds.length >= 2) ||
+                                      final correct =
+                                          (cellData.correctLetter ?? '')
+                                              .toUpperCase();
+                                      final current =
+                                          (_userInput[index] ?? '')
+                                              .toUpperCase();
+                                      final showCorner =
+                                          ((cellData.clueIds.length >= 2) ||
                                               (cellData.clueNumber != null)) &&
                                           current != correct;
 
-                                  return CellWidget(
-                                    letter: _userInput[index] ?? '',
-                                    clueNumber: cellData.clueNumber,
-                                    isSelected: index == selectedCellIndex,
-                                    isHighlighted:
-                                        highlightedCellIndices.contains(index),
-                                    isIncorrect: _incorrectCells.contains(index),
-                                    cornerHint: showCorner ? correct : null,
-                                    isPulsing: _pulsingCells.contains(index),
-                                    onTap: () async {
-                                      await AudioService.instance.playClick();
-                                      _setSelectedCell(index, fromUserTap: true);
+                                      return CellWidget(
+                                        letter: _userInput[index] ?? '',
+                                        clueNumber: cellData.clueNumber,
+                                        isSelected: index == selectedCellIndex,
+                                        isHighlighted: highlightedCellIndices
+                                            .contains(index),
+                                        isIncorrect: _incorrectCells.contains(
+                                          index,
+                                        ),
+                                        cornerHint: showCorner ? correct : null,
+                                        isPulsing: _pulsingCells.contains(
+                                          index,
+                                        ),
+                                        onTap: () async {
+                                          await AudioService.instance
+                                              .playClick();
+                                          _setSelectedCell(
+                                            index,
+                                            fromUserTap: true,
+                                          );
+                                        },
+                                      );
                                     },
-                                  );
-                                },
-                              ),
+                                  ),
+                        ),
                       ),
-                    ),
 
-                    // --- Generating Overlay ---
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        ignoring: !_isGenerating,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 150),
-                          opacity: _isGenerating ? 1.0 : 0.0,
-                          child: Container(
-                            color: Colors.black54,
-                            child: Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  SizedBox(
-                                    width: 48,
-                                    height: 48,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 4,
-                                      color: Colors.yellow,
+                      // --- Generating Overlay ---
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          ignoring: !_isGenerating,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 150),
+                            opacity: _isGenerating ? 1.0 : 0.0,
+                            child: Container(
+                              color: Colors.black54,
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 4,
+                                        color: Colors.yellow,
+                                      ),
                                     ),
-                                  ),
-                                  SizedBox(height: 12),
-                                  Text(
-                                    'Generating level...',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
+                                    SizedBox(height: 12),
+                                    Text(
+                                      'Generating level...',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              // --- 2. Fixed Current Clue + Keyboard at Bottom ---
-              SizedBox(
-                height: MediaQuery.of(context).size.height * 0.32,
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: CurrentClueWidget(clue: activeClue)),
-                        IconButton(
-                          tooltip: 'Toggle Across/Down',
-                          onPressed: () async {
-                            await AudioService.instance.playClick();
-                            _toggleClueDirection();
-                          },
-                          icon: const Icon(
-                            Icons.swap_horiz,
-                            color: Colors.yellowAccent,
+                // --- 2. Fixed Current Clue + Keyboard at Bottom ---
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.32,
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: CurrentClueWidget(clue: activeClue)),
+                          IconButton(
+                            tooltip: 'Toggle Across/Down',
+                            onPressed: () async {
+                              await AudioService.instance.playClick();
+                              _toggleClueDirection();
+                            },
+                            icon: const Icon(
+                              Icons.swap_horiz,
+                              color: Colors.yellowAccent,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    Expanded(
-                      child: CustomKeyboard(onKeyPress: _handleKeyPress),
-                    ),
-                  ],
+                        ],
+                      ),
+                      Expanded(
+                        child: CustomKeyboard(onKeyPress: _handleKeyPress),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-      )
     );
   }
 }
