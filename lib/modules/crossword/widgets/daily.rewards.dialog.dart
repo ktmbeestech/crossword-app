@@ -5,38 +5,47 @@ Future<void> showDailyRewardsDialog(
   BuildContext context, {
   required int currentDayIndex,
   required Set<int> claimedDays,
+  required bool isTodayClaimed,
   required VoidCallback onClaim,
 }) {
   return showDialog(
     context: context,
     barrierDismissible: true,
-    builder: (_) => Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: DailyRewardsDialog(
-        currentDayIndex: currentDayIndex,
-        claimedDays: claimedDays,
-        onClaim: onClaim,
-      ),
-    ),
+    builder:
+        (_) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          child: DailyRewardsDialog(
+            currentDayIndex: currentDayIndex,
+            claimedDays: claimedDays,
+            onClaim: onClaim,
+            isTodayClaimed: isTodayClaimed,
+          ),
+        ),
   );
 }
 
 class DailyRewardsDialog extends StatelessWidget {
   final int currentDayIndex;
   final Set<int> claimedDays;
+  final bool isTodayClaimed;
   final VoidCallback onClaim;
 
   const DailyRewardsDialog({
     super.key,
     required this.currentDayIndex,
     required this.claimedDays,
+    required this.isTodayClaimed,
     required this.onClaim,
   });
 
   @override
   Widget build(BuildContext context) {
-    final alreadyClaimedToday = claimedDays.contains(currentDayIndex);
+    final alreadyClaimedToday = isTodayClaimed;
+    final canClaim = !alreadyClaimedToday;
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -77,9 +86,9 @@ class DailyRewardsDialog extends StatelessWidget {
                     Text(
                       'Play everyday and get rewards',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.black.withOpacity(0.95),
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: Colors.black.withOpacity(0.95),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -96,19 +105,20 @@ class DailyRewardsDialog extends StatelessWidget {
                     final isActive = i == currentDayIndex;
                     final isClaimed = claimedDays.contains(i);
                     final isMissed = i < currentDayIndex && !isClaimed;
-                    final rewardMultiplier = i == 0
-                        ? 'x1'
-                        : i == 1
+                    final rewardMultiplier =
+                        i == 0
+                            ? 'x1'
+                            : i == 1
                             ? 'x2'
                             : i == 2
-                                ? 'x3'
-                                : i == 3
-                                    ? 'x4'
-                                    : i == 4
-                                        ? 'x5'
-                                        : i == 5
-                                            ? 'x6'
-                                            : 'x7';
+                            ? 'x3'
+                            : i == 3
+                            ? 'x4'
+                            : i == 4
+                            ? 'x5'
+                            : i == 5
+                            ? 'x6'
+                            : 'x7';
                     return DayRewardTile(
                       dayLabel: 'Day $day',
                       rewardLabel: rewardMultiplier,
@@ -130,7 +140,9 @@ class DailyRewardsDialog extends StatelessWidget {
                       if (alreadyClaimedToday) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Already claimed. Come back tomorrow!'),
+                            content: Text(
+                              'Already claimed. Come back tomorrow!',
+                            ),
                           ),
                         );
                         return Navigator.of(context).pop();
@@ -227,8 +239,10 @@ class DayRewardTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = isActive ? const Color(0xFF3C8CE7) : const Color(0xFF3F3A60);
-    final topGrad = isActive ? const Color(0xFF80D0C7) : const Color(0xFF5A5580);
+    final baseColor =
+        isActive ? const Color(0xFF3C8CE7) : const Color(0xFF3F3A60);
+    final topGrad =
+        isActive ? const Color(0xFF80D0C7) : const Color(0xFF5A5580);
     final bg = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
@@ -283,7 +297,11 @@ class DayRewardTile extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.lightbulb, color: Colors.amber.shade300, size: 18),
+                    Icon(
+                      Icons.lightbulb,
+                      color: Colors.amber.shade300,
+                      size: 18,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       rewardLabel,

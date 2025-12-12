@@ -193,28 +193,33 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                       await AudioService.instance.playClick();
                       final svc = DailyRewardService();
                       final currentDayIndex = await svc.currentDayIndex();
+                      final isTodayClaimed = await svc.isClaimedToday();
                       final claimed = <int>{};
 
-                      // Get the actual claim history to determine claimed days
+                      // Get actual claim history
                       final history = await svc.history(limit: 7);
                       final dailyClaims =
                           history.where((e) => e['type'] == 'daily').toList();
 
-                      // Sort daily claims by claimed_utc to ensure correct order
+                      // Sort claims by time
                       dailyClaims.sort(
                         (a, b) => (a['claimed_utc'] as int).compareTo(
                           b['claimed_utc'] as int,
                         ),
                       );
 
-                      // Add claimed days based on actual history
+                      // Add claimed days based on actual history (indices 0 to dailyClaims.length-1)
                       for (int i = 0; i < dailyClaims.length; i++) {
                         claimed.add(i);
                       }
+
+                      // Set currentDayIndex to the next day to claim (cycles every 7 days)
+                      final nextDayIndex = dailyClaims.length % 7;
                       await showDailyRewardsDialog(
                         context,
-                        currentDayIndex: currentDayIndex,
+                        currentDayIndex: nextDayIndex,
                         claimedDays: claimed,
+                        isTodayClaimed: isTodayClaimed,
                         onClaim: () async {
                           final n = await svc.claimDailyAndGrantHints();
                           if (n != null && mounted)
