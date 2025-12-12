@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:crosswords/constant/style/app.style.constant.dart';
 import 'package:crosswords/services/audio/audio.service.dart';
 import 'package:crosswords/modules/landing/widgets/glowing_animation.widget.dart';
 import 'package:crosswords/modules/crossword/widgets/daily.rewards.dialog.dart';
@@ -20,6 +22,8 @@ class CrosswordLandingPage extends StatefulWidget {
 }
 
 class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
+  bool _debugMode = false;
+
   void onToggleSound() async {
     await AudioService.instance.toggleSfx();
     if (mounted) setState(() {});
@@ -54,16 +58,54 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
           barrierDismissible: false,
           builder:
               (ctx) => AlertDialog(
-                title: const Text('Exit'),
-                content: const Text('Are you sure you want to exit?'),
+                backgroundColor: AppTheme.darkBackground,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                title: Text(
+                  'Exit',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
+                ),
+                content: Text(
+                  'Are you sure you want to exit?',
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(ctx).pop(false),
-                    child: const Text('No'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                    child: const Text(
+                      'No',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
                   TextButton(
                     onPressed: () => Navigator.of(ctx).pop(true),
-                    child: const Text('Yes'),
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppTheme.primaryIndigo,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Yes',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ],
               ),
@@ -103,7 +145,7 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                   child: Column(
                     children: [
                       InkWell(
-                        onTap: () async{
+                        onTap: () async {
                           await AudioService.instance.playClick();
                           showDialog(
                             context: context,
@@ -125,7 +167,7 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                       ),
                       sboxH30,
                       InkWell(
-                        onTap: () async{
+                        onTap: () async {
                           await AudioService.instance.playClick();
                           Navigator.push(
                             context,
@@ -150,22 +192,28 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                     onTap: () async {
                       await AudioService.instance.playClick();
                       final svc = DailyRewardService();
-                      final streak = await svc.currentStreak();
-                      final alreadyClaimed = await svc.isClaimedToday();
-                      final base = streak % 7; // 0..6 index for current cycle
+                      final currentDayIndex = await svc.currentDayIndex();
                       final claimed = <int>{};
-                      if (alreadyClaimed) {
-                        for (var i = 0; i <= base; i++) {
-                          claimed.add(i);
-                        }
-                      } else {
-                        for (var i = 0; i < base; i++) {
-                          claimed.add(i);
-                        }
+
+                      // Get the actual claim history to determine claimed days
+                      final history = await svc.history(limit: 7);
+                      final dailyClaims =
+                          history.where((e) => e['type'] == 'daily').toList();
+
+                      // Sort daily claims by claimed_utc to ensure correct order
+                      dailyClaims.sort(
+                        (a, b) => (a['claimed_utc'] as int).compareTo(
+                          b['claimed_utc'] as int,
+                        ),
+                      );
+
+                      // Add claimed days based on actual history
+                      for (int i = 0; i < dailyClaims.length; i++) {
+                        claimed.add(i);
                       }
                       await showDailyRewardsDialog(
                         context,
-                        currentDayIndex: base,
+                        currentDayIndex: currentDayIndex,
                         claimedDays: claimed,
                         onClaim: () async {
                           final n = await svc.claimDailyAndGrantHints();
@@ -201,6 +249,168 @@ class _CrosswordLandingPageState extends State<CrosswordLandingPage> {
                     ),
                   ),
                 ),
+
+                // DEBUG TOGGLE BUTTON (only in debug mode)
+                if (kDebugMode)
+                  Positioned(
+                    right: 18,
+                    top: 440,
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _debugMode = !_debugMode;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade800,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'DEBUG',
+                          style: TextStyle(color: Colors.white, fontSize: 8),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // DEBUG TESTING CONTROLS (only in debug mode)
+                if (kDebugMode && _debugMode)
+                  Positioned(
+                    right: 18,
+                    top: 460,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Test Daily Rewards',
+                            style: TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: List.generate(7, (dayIndex) {
+                              return GestureDetector(
+                                onTap: () async {
+                                  final svc = DailyRewardService();
+                                  await svc.debugShiftToDay(
+                                    targetDay: dayIndex + 1,
+                                  );
+                                  setState(() {});
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade600,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'D${dayIndex + 1}U',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: List.generate(7, (dayIndex) {
+                              return GestureDetector(
+                                onTap: () async {
+                                  final svc = DailyRewardService();
+                                  await svc.debugTestScenario(
+                                    dayIndex: dayIndex,
+                                    isClaimed: true,
+                                  );
+                                  setState(() {});
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade600,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'D${dayIndex + 1}C',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                          const SizedBox(height: 4),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Shift to Day:',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Wrap(
+                                spacing: 4,
+                                runSpacing: 4,
+                                children: List.generate(7, (dayIndex) {
+                                  final dayNumber = dayIndex + 1;
+                                  return GestureDetector(
+                                    onTap: () async {
+                                      final svc = DailyRewardService();
+                                      await svc.debugShiftToDay(
+                                        targetDay: dayNumber,
+                                      );
+                                      setState(() {});
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.shade600,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        'Day $dayNumber',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                 Align(
                   alignment: const Alignment(0, -0.05),

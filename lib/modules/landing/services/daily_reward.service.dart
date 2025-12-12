@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:crosswords/modules/landing/repository/reward.repos.dart';
 import 'package:crosswords/modules/landing/repository/repositories.dart';
 import 'package:crosswords/modules/landing/services/hint.service.dart';
@@ -18,6 +19,14 @@ class DailyRewardService {
   Future<List<Map<String, Object?>>> history({int limit = 30}) =>
       _rewards.getHistory(limit: limit);
 
+  // DEBUG ONLY: Shift to specific day for testing (bypasses daily refresh)
+  Future<void> debugShiftToDay({
+    required int targetDay, 
+  }) async {
+    if (!kDebugMode) return;
+    await _rewards.debugShiftToDay(targetDay: targetDay);
+  }
+
   // Claims the daily reward if eligible and grants hints, returning new hint total.
   Future<int?> claimDailyAndGrantHints() async {
     final can = await canClaimToday();
@@ -30,12 +39,33 @@ class DailyRewardService {
     return n;
   }
 
+  // DEBUG ONLY: Test scenario for specific day and claim status
+  Future<void> debugTestScenario({
+    required int dayIndex,
+    required bool isClaimed,
+  }) async {
+    if (!kDebugMode) return;
+    await _rewards.debugShiftToDay(targetDay: dayIndex +1 );
+    if (isClaimed) {
+      final amount = amountForDayIndex(dayIndex);
+      await _rewards.claimToday(amount: amount);
+    }
+  }
+
   // Grants a one-time level completion bonus (default 5 hints) per level.
   // Returns new hint total if granted, or null if already granted before.
-  Future<int?> grantLevelCompletionBonus(String levelId, {int amount = 5}) async {
+  Future<int?> grantLevelCompletionBonus(
+    String levelId, {
+    int amount = 5,
+  }) async {
     final Database db = await DatabaseService.instance.db;
     final type = 'level_bonus:$levelId';
-    final existing = await db.query('reward_events', where: 'type = ?', whereArgs: [type], limit: 1);
+    final existing = await db.query(
+      'reward_events',
+      where: 'type = ?',
+      whereArgs: [type],
+      limit: 1,
+    );
     if (existing.isNotEmpty) return null; // already granted
     await db.insert('reward_events', {
       'claimed_utc': DateTime.now().toUtc().millisecondsSinceEpoch,

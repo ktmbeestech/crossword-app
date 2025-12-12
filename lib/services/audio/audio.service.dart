@@ -34,7 +34,9 @@ class AudioService with WidgetsBindingObserver {
     if (savedSfx != null) {
       _sfxEnabledNotifier.value = savedSfx == 'true';
     }
-    debugPrint('[AudioService] initialize: musicEnabled=${_musicEnabledNotifier.value}, sfxEnabled=${_sfxEnabledNotifier.value}');
+    debugPrint(
+      '[AudioService] initialize: musicEnabled=${_musicEnabledNotifier.value}, sfxEnabled=${_sfxEnabledNotifier.value}',
+    );
     try {
       WidgetsBinding.instance.addObserver(this);
       _player ??= AudioPlayer();
@@ -50,9 +52,7 @@ class AudioService with WidgetsBindingObserver {
             ),
             iOS: AudioContextIOS(
               category: AVAudioSessionCategory.playback,
-              options: {
-                AVAudioSessionOptions.mixWithOthers,
-              },
+              options: {AVAudioSessionOptions.mixWithOthers},
             ),
           ),
         );
@@ -91,9 +91,7 @@ class AudioService with WidgetsBindingObserver {
               ),
               iOS: AudioContextIOS(
                 category: AVAudioSessionCategory.playback,
-                options: {
-                  AVAudioSessionOptions.mixWithOthers,
-                },
+                options: {AVAudioSessionOptions.mixWithOthers},
               ),
             ),
           );
@@ -139,11 +137,15 @@ class AudioService with WidgetsBindingObserver {
           try {
             final state = _player!.state;
             final currentState = state is Future ? await state : state;
-            debugPrint('[AudioService] toggleMusic: currentState=$currentState');
+            debugPrint(
+              '[AudioService] toggleMusic: currentState=$currentState',
+            );
             await _player!.stop();
             debugPrint('[AudioService] toggleMusic: stopped');
           } catch (e, st) {
-            debugPrint('[AudioService] toggleMusic: state/pause handling failed: $e');
+            debugPrint(
+              '[AudioService] toggleMusic: state/pause handling failed: $e',
+            );
             debugPrint('$st');
             try {
               await _player!.stop();
@@ -173,7 +175,9 @@ class AudioService with WidgetsBindingObserver {
   Future<void> toggleSfx() async {
     await initialize();
     _sfxEnabledNotifier.value = !_sfxEnabledNotifier.value;
-    debugPrint('[AudioService] toggleSfx -> ${_sfxEnabledNotifier.value ? 'enabling' : 'disabling'}');
+    debugPrint(
+      '[AudioService] toggleSfx -> ${_sfxEnabledNotifier.value ? 'enabling' : 'disabling'}',
+    );
     await _persistSfx();
   }
 
@@ -192,9 +196,7 @@ class AudioService with WidgetsBindingObserver {
             ),
             iOS: AudioContextIOS(
               category: AVAudioSessionCategory.playback,
-              options: {
-                AVAudioSessionOptions.mixWithOthers,
-              },
+              options: {AVAudioSessionOptions.mixWithOthers},
             ),
           ),
         );
@@ -251,12 +253,41 @@ class AudioService with WidgetsBindingObserver {
         await _player!.resume();
         debugPrint('[AudioService] _safeResume: resumed');
       } catch (e) {
-        debugPrint('[AudioService] _safeResume: resume failed -> $e, falling back to _safePlay');
+        debugPrint(
+          '[AudioService] _safeResume: resume failed -> $e, falling back to _safePlay',
+        );
         await _safePlay();
       }
     } catch (_) {
       debugPrint('[AudioService] _safeResume failed, calling _safePlay');
       await _safePlay();
+    }
+  }
+
+  Future<void> _safePause() async {
+    try {
+      if (_player == null) {
+        debugPrint('[AudioService] _safePause: no player');
+        return;
+      }
+      PlayerState current;
+      try {
+        final state = _player!.state;
+        current = state is Future ? await state : state;
+      } catch (_) {
+        current = PlayerState.stopped;
+      }
+      debugPrint('[AudioService] _safePause: currentState=$current');
+      if (current == PlayerState.playing) {
+        try {
+          await _player!.pause();
+          debugPrint('[AudioService] _safePause: paused');
+        } catch (e) {
+          debugPrint('[AudioService] _safePause: pause failed -> $e');
+        }
+      }
+    } catch (_) {
+      debugPrint('[AudioService] _safePause failed');
     }
   }
 
@@ -266,6 +297,9 @@ class AudioService with WidgetsBindingObserver {
       if (isMusicEnabled) {
         _safeResume();
       }
+    } else if (state == AppLifecycleState.paused) {
+      // Pause audio when app is minimized/backgrounded
+      _safePause();
     }
   }
 
@@ -290,7 +324,9 @@ class AudioService with WidgetsBindingObserver {
       }
 
       if (_sfxPlayer == null) {
-        debugPrint('[AudioService] _playAssetSfx: sfxPlayer was null, reinitializing');
+        debugPrint(
+          '[AudioService] _playAssetSfx: sfxPlayer was null, reinitializing',
+        );
         await initialize();
       }
       if (_sfxPlayer == null) return;
@@ -309,7 +345,9 @@ class AudioService with WidgetsBindingObserver {
         await _sfxPlayer!.play(AssetSource(assetPath));
         debugPrint('[AudioService] SFX playing: $assetPath');
       } catch (e) {
-        debugPrint('[AudioService] _playAssetSfx play failed for $assetPath (shared): $e');
+        debugPrint(
+          '[AudioService] _playAssetSfx play failed for $assetPath (shared): $e',
+        );
         // Fallback: try with a fresh ephemeral player
         try {
           final temp = AudioPlayer();
@@ -324,7 +362,7 @@ class AudioService with WidgetsBindingObserver {
               ),
               iOS: AudioContextIOS(
                 category: AVAudioSessionCategory.playback,
-                options: { AVAudioSessionOptions.mixWithOthers },
+                options: {AVAudioSessionOptions.mixWithOthers},
               ),
             ),
           );
@@ -333,11 +371,15 @@ class AudioService with WidgetsBindingObserver {
           await temp.setVolume(1.0);
           await temp.play(AssetSource(assetPath));
           temp.onPlayerComplete.first.then((_) async {
-            try { await temp.dispose(); } catch (_) {}
+            try {
+              await temp.dispose();
+            } catch (_) {}
           });
           debugPrint('[AudioService] SFX playing via fallback: $assetPath');
         } catch (e2) {
-          debugPrint('[AudioService] _playAssetSfx fallback failed for $assetPath: $e2');
+          debugPrint(
+            '[AudioService] _playAssetSfx fallback failed for $assetPath: $e2',
+          );
         }
       }
 
